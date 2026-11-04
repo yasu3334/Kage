@@ -1,0 +1,719 @@
+import React, { useEffect, useState } from 'react';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import {
+  Bell,
+  Calendar,
+  ChevronRight,
+  Compass,
+  Crown,
+  Filter,
+  Inbox,
+  LogIn,
+  Megaphone,
+  Menu,
+  Mic,
+  Radio,
+  Search,
+  Settings,
+  Star,
+  Swords,
+  Users,
+  X,
+  Zap,
+} from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { KageImage } from './KageImage';
+import { KageLogo, OwnerBadge } from './KageBrand';
+
+interface AppShellProps {
+  children: React.ReactNode;
+  onReplayIntro: () => void;
+}
+
+export const AppShell: React.FC<AppShellProps> = ({ children, onReplayIntro }) => {
+  const {
+    user,
+    profile,
+    unreadNotifications,
+    unreadMessages,
+    latestAnnouncement,
+    dismissAnnouncement,
+  } = useAuth();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDrawerOpen(false);
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => {
+      window.removeEventListener('keydown', handleKey);
+    };
+  }, []);
+
+  // Universal smooth mouse drag-to-scroll & Shift+Wheel horizontal scroll across every .overflow-x-auto container
+  useEffect(() => {
+    let activeEl: HTMLElement | null = null;
+    let startX = 0;
+    let startY = 0;
+    let startScrollLeft = 0;
+    let isDraggingX = false;
+    let suppressNextClick = false;
+
+    const findHorizontalScroller = (target: EventTarget | null): HTMLElement | null => {
+      let node = target instanceof HTMLElement ? target : null;
+      while (node && node !== document.body) {
+        if (
+          (node.classList.contains('overflow-x-auto') ||
+            node.classList.contains('kage-scroll-x') ||
+            node.dataset.kageScrollX === 'true') &&
+          node.scrollWidth > node.clientWidth + 4
+        ) {
+          return node;
+        }
+        node = node.parentElement;
+      }
+      return null;
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse' || e.button !== 0) return;
+      const targetTag = (e.target as HTMLElement | null)?.tagName;
+      if (targetTag === 'INPUT' || targetTag === 'TEXTAREA' || targetTag === 'SELECT') return;
+      const scroller = findHorizontalScroller(e.target);
+      if (!scroller) return;
+      activeEl = scroller;
+      startX = e.clientX;
+      startY = e.clientY;
+      startScrollLeft = scroller.scrollLeft;
+      isDraggingX = false;
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (!activeEl || e.pointerType !== 'mouse') return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if (!isDraggingX) {
+        if (Math.abs(dx) > 7 && Math.abs(dx) > Math.abs(dy)) {
+          isDraggingX = true;
+          suppressNextClick = true;
+          activeEl.style.scrollSnapType = 'none';
+          activeEl.style.scrollBehavior = 'auto';
+        } else if (Math.abs(dy) > 10) {
+          activeEl = null;
+          return;
+        }
+      }
+      if (isDraggingX && activeEl) {
+        e.preventDefault();
+        activeEl.scrollLeft = startScrollLeft - dx;
+      }
+    };
+
+    const endPointerDrag = () => {
+      if (activeEl && isDraggingX) {
+        activeEl.style.scrollSnapType = '';
+        activeEl.style.scrollBehavior = '';
+      }
+      activeEl = null;
+      isDraggingX = false;
+      if (suppressNextClick) {
+        setTimeout(() => {
+          suppressNextClick = false;
+        }, 60);
+      }
+    };
+
+    const onClickCapture = (e: MouseEvent) => {
+      if (suppressNextClick) {
+        e.preventDefault();
+        e.stopPropagation();
+        suppressNextClick = false;
+      }
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      if (!e.shiftKey || Math.abs(e.deltaY) === 0) return;
+      const scroller = findHorizontalScroller(e.target);
+      if (!scroller) return;
+      e.preventDefault();
+      scroller.scrollLeft += e.deltaY;
+    };
+
+    window.addEventListener('pointerdown', onPointerDown, { passive: true });
+    window.addEventListener('pointermove', onPointerMove, { passive: false });
+    window.addEventListener('pointerup', endPointerDrag, { passive: true });
+    window.addEventListener('pointercancel', endPointerDrag, { passive: true });
+    window.addEventListener('click', onClickCapture, true);
+    window.addEventListener('wheel', onWheel, { passive: false });
+
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', endPointerDrag);
+      window.removeEventListener('pointercancel', endPointerDrag);
+      window.removeEventListener('click', onClickCapture, true);
+      window.removeEventListener('wheel', onWheel);
+    };
+  }, []);
+
+  const isAuthRoute = location.pathname.startsWith('/auth');
+  if (isAuthRoute) {
+    return <div className="min-h-dvh bg-[#09080B] text-[#F5F1F2]">{children}</div>;
+  }
+
+  const isOwnerOrAdmin = user?.role === 'owner' || user?.role === 'admin';
+
+  const isRealmsSectionActive =
+    location.pathname === '/' ||
+    location.pathname.startsWith('/realms') ||
+    location.pathname.startsWith('/category') ||
+    location.pathname.startsWith('/filters') ||
+    location.pathname.startsWith('/anime');
+
+  const isGuildSectionActive =
+    location.pathname.startsWith('/guilds') || location.pathname.startsWith('/voice');
+
+  // Exact 4-tab KAGE bottom navigation: Realms | Pulse | Guilds | Clash
+  const bottomTabs = [
+    { to: '/', label: 'Realms', icon: Compass, activeOverride: isRealmsSectionActive },
+    { to: '/pulse', label: 'Pulse', icon: Radio, activeOverride: location.pathname.startsWith('/pulse') },
+    { to: '/guilds', label: 'Guilds', icon: Users, activeOverride: isGuildSectionActive },
+    { to: '/clash', label: 'Clash', icon: Swords, activeOverride: location.pathname.startsWith('/clash') },
+  ];
+
+  // Sub-screens that render their own back/close header or full-bleed cover banner
+  const isVoiceActiveRoom = /^\/voice\/\d+/.test(location.pathname);
+  const isCommunityChatRoom = /^\/guilds\/[^/]+\/rooms\/[^/]+/.test(location.pathname);
+  const isCommunityProfile =
+    location.pathname.startsWith('/guilds/') && !isCommunityChatRoom;
+  const hideTopBar =
+    isVoiceActiveRoom ||
+    isCommunityChatRoom ||
+    isCommunityProfile ||
+    location.pathname.startsWith('/anime/') ||
+    location.pathname.startsWith('/inbox');
+
+  // Immersive full-height chat/stage routes that render their own fixed bottom bar
+  const hideBottomNav =
+    isVoiceActiveRoom || isCommunityChatRoom || location.pathname.startsWith('/inbox');
+
+  return (
+    <div className="min-h-dvh bg-[#09080B] text-[#F5F1F2] flex flex-col">
+      {/* Top Navigation Header (Identical across Mobile, Tablet & Laptop/Desktop):
+          - Left side: Hamburger menu + Search icon
+          - Center: ONE KAGE logo + ONE "The Anime Universe" tagline centered relative to full screen width
+          - Right side: Notification bell + User profile avatar */}
+      <header
+        className={`${
+          hideTopBar ? 'hidden' : 'flex'
+        } sticky top-0 z-30 w-full h-14 sm:h-15 bg-[#09080B]/95 backdrop-blur-md border-b border-white/8 px-2.5 sm:px-6 items-center justify-between`}
+      >
+        {/* Left Side: Hamburger Menu + Search Icon */}
+        <div className="relative z-10 flex items-center gap-0.5 sm:gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setDrawerOpen(true)}
+            className="min-h-[44px] min-w-[42px] flex items-center justify-center rounded-xl text-[#F5F1F2] hover:bg-white/5 transition-colors cursor-pointer kage-press"
+            aria-label="Open navigation menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate('/search')}
+            className="min-h-[44px] min-w-[42px] flex items-center justify-center rounded-xl text-[#F5F1F2]/90 hover:text-white hover:bg-white/5 transition-colors cursor-pointer kage-press"
+            aria-label="Search KAGE"
+          >
+            <Search className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Center: Single KAGE Logo + Single "The Anime Universe" Tagline (Centered Across Full Header Width) */}
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+          <Link
+            to="/"
+            className="pointer-events-auto inline-flex items-center justify-center whitespace-nowrap shrink-0 kage-press rounded-lg px-1.5 py-0.5"
+            aria-label="KAGE — The Anime Universe Home"
+          >
+            <KageLogo size="md" showSubtitle centered />
+          </Link>
+        </div>
+
+        {/* Right Side: Notification Bell + User Profile Avatar */}
+        <div className="relative z-10 flex items-center gap-0.5 sm:gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => navigate(user ? '/notifications' : '/auth/login')}
+            className="relative min-h-[44px] min-w-[42px] flex items-center justify-center rounded-xl text-[#F5F1F2]/90 hover:text-white hover:bg-white/5 transition-colors cursor-pointer kage-press"
+            aria-label="Notifications"
+          >
+            <Bell className="w-5 h-5" />
+            {unreadNotifications > 0 && (
+              <span className="absolute top-2 right-1.5 min-w-[16px] h-[16px] px-1 rounded-full bg-[#C0263D] text-white text-[9px] font-mono-num font-bold flex items-center justify-center">
+                {unreadNotifications > 9 ? '9+' : unreadNotifications}
+              </span>
+            )}
+          </button>
+
+          {user && profile ? (
+            <Link
+              to="/profile"
+              className="min-h-[44px] min-w-[42px] flex items-center justify-center rounded-xl kage-press"
+              aria-label="Your profile"
+            >
+              <div
+                className={`w-8 h-8 rounded-full overflow-hidden bg-[#141116] ${
+                  user.role === 'owner'
+                    ? 'border-2 border-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.35)]'
+                    : 'border border-white/20'
+                }`}
+              >
+                <KageImage
+                  src={profile.avatarUrl}
+                  alt={profile.displayName}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </Link>
+          ) : (
+            <Link
+              to="/auth/welcome"
+              aria-label="Profile / Sign In"
+              className="min-h-[44px] min-w-[42px] flex items-center justify-center rounded-xl kage-press"
+            >
+              <div className="w-8 h-8 rounded-full overflow-hidden bg-[#141116] border border-white/20">
+                <KageImage
+                  src="asset:avatar_default"
+                  alt="Sign in to KAGE"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </Link>
+          )}
+        </div>
+      </header>
+
+      {/* Live Global Sovereign Owner Announcement Banner */}
+      {latestAnnouncement && (
+        <div className="bg-gradient-to-r from-amber-500/15 via-[#C0263D]/20 to-[#6D28D9]/20 border-b border-amber-400/35 px-3 sm:px-6 py-2.5">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                const dest = latestAnnouncement.linkUrl || '/notifications';
+                dismissAnnouncement();
+                navigate(dest);
+              }}
+              className="flex items-center gap-2.5 min-w-0 text-left cursor-pointer"
+            >
+              <Megaphone className="w-4 h-4 text-amber-400 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-amber-200 truncate">
+                  {latestAnnouncement.title}
+                </p>
+                <p className="text-[11px] text-[#F5F1F2]/85 truncate">
+                  {latestAnnouncement.body}
+                </p>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={dismissAnnouncement}
+              className="min-h-[32px] min-w-[32px] flex items-center justify-center rounded-lg text-[#A7A0AA] hover:text-white shrink-0 cursor-pointer"
+              aria-label="Dismiss announcement"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Navigation Sheet — Opens from Hamburger menu across all viewports (Mobile, Tablet & Laptop) */}
+      {drawerOpen && (
+        <div className="fixed inset-0 z-50 flex" role="dialog" aria-modal="true" aria-label="Navigation menu">
+          <div
+            className="fixed inset-0 bg-black/75 backdrop-blur-sm"
+            onClick={() => setDrawerOpen(false)}
+          />
+          <aside className="relative z-10 w-[85vw] max-w-[324px] h-full bg-[#09080B] border-r border-white/10 flex flex-col justify-between overflow-hidden rounded-r-2xl shadow-[24px_0_64px_rgba(0,0,0,0.9)] kage-drawer-enter">
+            {/* Sheet Top Header: Centered KAGE — The Anime Universe + Explicit X Close Button */}
+            <div className="relative px-4 py-3.5 border-b border-white/8 flex items-center justify-center min-h-[60px] shrink-0">
+              <Link
+                to="/"
+                onClick={() => setDrawerOpen(false)}
+                className="flex items-center justify-center kage-press"
+                aria-label="KAGE Home"
+              >
+                <KageLogo size="sm" showSubtitle centered />
+              </Link>
+              <button
+                type="button"
+                onClick={() => setDrawerOpen(false)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-[#A7A0AA] hover:text-[#F5F1F2] hover:bg-white/5 cursor-pointer kage-press"
+                aria-label="Close navigation menu"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Body: User Identity Card + Categorized Full-Width Tap Rows */}
+            <div className="flex-1 overflow-y-auto px-3.5 py-3.5 space-y-5">
+              {/* Account / Identity Card */}
+              {user && profile ? (
+                <Link
+                  to="/profile"
+                  onClick={() => setDrawerOpen(false)}
+                  className="p-3 rounded-2xl bg-[#141116] hover:bg-[#1C1720] border border-white/10 flex items-center justify-between gap-3 transition-colors kage-press"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div
+                      className={`w-11 h-11 rounded-full overflow-hidden bg-[#09080B] shrink-0 ${
+                        user.role === 'owner'
+                          ? 'border-2 border-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.3)]'
+                          : 'border border-white/15'
+                      }`}
+                    >
+                      <KageImage
+                        src={profile.avatarUrl}
+                        alt={profile.displayName}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-bold text-[#F5F1F2] truncate">
+                          {profile.displayName}
+                        </span>
+                        <OwnerBadge role={user.role} size="xs" />
+                      </div>
+                      <p className="text-xs text-[#A7A0AA] truncate mt-0.5">
+                        @{user.username}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[#A7A0AA] shrink-0" />
+                </Link>
+              ) : (
+                <div className="p-3.5 rounded-2xl bg-[#141116] border border-white/10 space-y-2.5">
+                  <div>
+                    <p className="text-sm font-bold text-[#F5F1F2]">Welcome to KAGE</p>
+                    <p className="text-xs text-[#A7A0AA] mt-0.5 leading-relaxed">
+                      Sign in to save your watchlist, join guilds, and speak in live rooms.
+                    </p>
+                  </div>
+                  <Link
+                    to="/auth/welcome"
+                    onClick={() => setDrawerOpen(false)}
+                    className="w-full min-h-[44px] px-4 rounded-xl bg-[#C0263D] hover:bg-[#d42b44] text-white text-xs font-semibold flex items-center justify-center gap-2 transition-colors kage-press"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    <span>Sign In / Create Account</span>
+                  </Link>
+                </div>
+              )}
+
+              {isOwnerOrAdmin && (
+                <Link
+                  to="/admin"
+                  onClick={() => setDrawerOpen(false)}
+                  className="w-full min-h-[52px] px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500/18 via-[#C0263D]/20 to-[#141116] border border-amber-400/45 flex items-center justify-between gap-3 kage-press"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-lg bg-amber-500/20 border border-amber-400/40 flex items-center justify-center shrink-0">
+                      <Crown className="w-4 h-4 text-amber-400 fill-amber-400" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-amber-200 truncate">Admin Command</p>
+                      <p className="text-[11px] text-amber-200/75 truncate">
+                        Moderation, roles &amp; announcements
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-amber-300 shrink-0" />
+                </Link>
+              )}
+
+              {/* Section 1: Explore & Live */}
+              <div className="space-y-1">
+                <p className="px-2 pb-1 text-xs font-semibold text-[#A7A0AA]">
+                  Explore &amp; Live
+                </p>
+
+                <Link
+                  to="/voice"
+                  onClick={() => setDrawerOpen(false)}
+                  className={`w-full min-h-[52px] px-2.5 py-2 rounded-xl flex items-center justify-between gap-3 transition-colors kage-press ${
+                    location.pathname.startsWith('/voice')
+                      ? 'bg-[#141116] border border-white/12'
+                      : 'hover:bg-[#141116]'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-lg bg-[#141116] border border-white/10 flex items-center justify-center shrink-0">
+                      <Mic className="w-4 h-4 text-[#C0263D]" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[#F5F1F2] truncate">
+                        KAGE Live Rooms
+                      </p>
+                      <p className="text-[11px] text-[#A7A0AA] truncate">
+                        12-speaker voice &amp; video stages
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[#A7A0AA]/70 shrink-0" />
+                </Link>
+
+                <Link
+                  to="/filters"
+                  onClick={() => setDrawerOpen(false)}
+                  className={`w-full min-h-[52px] px-2.5 py-2 rounded-xl flex items-center justify-between gap-3 transition-colors kage-press ${
+                    location.pathname.startsWith('/filters')
+                      ? 'bg-[#141116] border border-white/12'
+                      : 'hover:bg-[#141116]'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-lg bg-[#141116] border border-white/10 flex items-center justify-center shrink-0">
+                      <Filter className="w-4 h-4 text-[#6D28D9]" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[#F5F1F2] truncate">
+                        Anime Filters
+                      </p>
+                      <p className="text-[11px] text-[#A7A0AA] truncate">
+                        Browse 28 genres, themes &amp; years
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[#A7A0AA]/70 shrink-0" />
+                </Link>
+
+                <Link
+                  to="/realms/genre/upcoming"
+                  onClick={() => setDrawerOpen(false)}
+                  className={`w-full min-h-[52px] px-2.5 py-2 rounded-xl flex items-center justify-between gap-3 transition-colors kage-press ${
+                    location.pathname === '/realms/genre/upcoming'
+                      ? 'bg-[#141116] border border-white/12'
+                      : 'hover:bg-[#141116]'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-lg bg-[#141116] border border-white/10 flex items-center justify-center shrink-0">
+                      <Calendar className="w-4 h-4 text-[#C0263D]" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[#F5F1F2] truncate">
+                        Upcoming Releases
+                      </p>
+                      <p className="text-[11px] text-[#A7A0AA] truncate">
+                        Next season &amp; announced anime
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[#A7A0AA]/70 shrink-0" />
+                </Link>
+
+                <Link
+                  to="/realms/genre/top-rated"
+                  onClick={() => setDrawerOpen(false)}
+                  className={`w-full min-h-[52px] px-2.5 py-2 rounded-xl flex items-center justify-between gap-3 transition-colors kage-press ${
+                    location.pathname === '/realms/genre/top-rated'
+                      ? 'bg-[#141116] border border-white/12'
+                      : 'hover:bg-[#141116]'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-lg bg-[#141116] border border-white/10 flex items-center justify-center shrink-0">
+                      <Star className="w-4 h-4 text-amber-400" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[#F5F1F2] truncate">
+                        Top Rated Anime
+                      </p>
+                      <p className="text-[11px] text-[#A7A0AA] truncate">
+                        Highest-scored series &amp; films
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[#A7A0AA]/70 shrink-0" />
+                </Link>
+              </div>
+
+              {/* Section 2: Messages & Activity */}
+              <div className="space-y-1 pt-1 border-t border-white/8">
+                <p className="px-2 pt-2 pb-1 text-xs font-semibold text-[#A7A0AA]">
+                  Messages &amp; Activity
+                </p>
+
+                <Link
+                  to={user ? '/inbox' : '/auth/login?redirect=%2Finbox'}
+                  onClick={() => setDrawerOpen(false)}
+                  className={`w-full min-h-[52px] px-2.5 py-2 rounded-xl flex items-center justify-between gap-3 transition-colors kage-press ${
+                    location.pathname.startsWith('/inbox')
+                      ? 'bg-[#141116] border border-white/12'
+                      : 'hover:bg-[#141116]'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-lg bg-[#141116] border border-white/10 flex items-center justify-center shrink-0">
+                      <Inbox className="w-4 h-4 text-[#F5F1F2]" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[#F5F1F2] truncate">Inbox</p>
+                      <p className="text-[11px] text-[#A7A0AA] truncate">
+                        Direct messages &amp; chat requests
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {unreadMessages > 0 && (
+                      <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[#C0263D] text-white text-[11px] font-mono-num font-bold flex items-center justify-center">
+                        {unreadMessages > 99 ? '99+' : unreadMessages}
+                      </span>
+                    )}
+                    <ChevronRight className="w-4 h-4 text-[#A7A0AA]/70" />
+                  </div>
+                </Link>
+
+                <Link
+                  to={user ? '/notifications' : '/auth/login?redirect=%2Fnotifications'}
+                  onClick={() => setDrawerOpen(false)}
+                  className={`w-full min-h-[52px] px-2.5 py-2 rounded-xl flex items-center justify-between gap-3 transition-colors kage-press ${
+                    location.pathname.startsWith('/notifications')
+                      ? 'bg-[#141116] border border-white/12'
+                      : 'hover:bg-[#141116]'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-lg bg-[#141116] border border-white/10 flex items-center justify-center shrink-0">
+                      <Bell className="w-4 h-4 text-[#F5F1F2]" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[#F5F1F2] truncate">
+                        Notifications
+                      </p>
+                      <p className="text-[11px] text-[#A7A0AA] truncate">
+                        Replies, likes &amp; guild updates
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {unreadNotifications > 0 && (
+                      <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[#C0263D] text-white text-[11px] font-mono-num font-bold flex items-center justify-center">
+                        {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                      </span>
+                    )}
+                    <ChevronRight className="w-4 h-4 text-[#A7A0AA]/70" />
+                  </div>
+                </Link>
+              </div>
+            </div>
+
+            {/* Pinned Sheet Footer: Settings & Replay Intro */}
+            <div className="p-3 border-t border-white/8 bg-[#09080B] space-y-1 shrink-0">
+              <Link
+                to="/settings"
+                onClick={() => setDrawerOpen(false)}
+                className={`w-full min-h-[46px] px-2.5 rounded-xl flex items-center justify-between gap-3 transition-colors kage-press ${
+                  location.pathname.startsWith('/settings')
+                    ? 'bg-[#141116] border border-white/12 text-[#F5F1F2]'
+                    : 'text-[#F5F1F2] hover:bg-[#141116]'
+                }`}
+              >
+                <span className="flex items-center gap-3">
+                  <span className="w-8 h-8 rounded-lg bg-[#141116] border border-white/10 flex items-center justify-center">
+                    <Settings className="w-4 h-4 text-[#A7A0AA]" />
+                  </span>
+                  <span className="text-sm font-semibold">Settings</span>
+                </span>
+                <ChevronRight className="w-4 h-4 text-[#A7A0AA]/70" />
+              </Link>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setDrawerOpen(false);
+                  onReplayIntro();
+                }}
+                className="w-full min-h-[44px] px-2.5 rounded-xl hover:bg-[#141116] flex items-center justify-between gap-3 text-[#A7A0AA] hover:text-[#F5F1F2] transition-colors cursor-pointer kage-press"
+              >
+                <span className="flex items-center gap-3">
+                  <span className="w-8 h-8 rounded-lg bg-[#141116] border border-white/10 flex items-center justify-center">
+                    <Zap className="w-4 h-4 text-amber-400" />
+                  </span>
+                  <span className="text-xs font-medium">Replay Intro</span>
+                </span>
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
+
+      {/* Main Content Container (Full Symmetric Width Across Mobile, Tablet & Laptop) */}
+      <div
+        className={`flex-1 w-full max-w-7xl mx-auto flex ${
+          isCommunityProfile || isVoiceActiveRoom || isCommunityChatRoom
+            ? 'px-0 sm:px-6 pt-0 sm:pt-3'
+            : 'px-3 sm:px-6 pt-3'
+        } ${hideBottomNav ? 'pb-6' : 'pb-24'}`}
+      >
+        <main key={location.pathname} className="flex-1 min-w-0 kage-page-enter">
+          {children}
+        </main>
+      </div>
+
+      {/* Fixed Bottom Navigation Anchor — 4 Tabs: Realms / Pulse / Guilds / Clash (Consistent Across Mobile, Tablet & Laptop) */}
+      {!hideBottomNav && (
+        <nav
+          className="fixed bottom-0 left-0 right-0 z-30 bg-[#09080B]/95 backdrop-blur-md border-t border-white/8 grid grid-cols-4 items-center h-14 sm:h-15 pb-safe"
+          aria-label="Primary navigation"
+        >
+          {bottomTabs.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <NavLink
+                key={tab.to}
+                to={tab.to}
+                end={tab.to === '/'}
+                className={({ isActive }) => {
+                  const active = tab.activeOverride || isActive;
+                  return `min-h-[48px] flex flex-col items-center justify-center gap-0.5 kage-press relative ${
+                    active ? 'text-[#F5F1F2]' : 'text-[#A7A0AA]'
+                  }`;
+                }}
+              >
+                {({ isActive }) => {
+                  const active = tab.activeOverride || isActive;
+                  return (
+                    <>
+                      <Icon
+                        className={`w-5 h-5 transition-transform duration-150 ${
+                          active ? 'text-[#C0263D] -translate-y-0.5' : 'text-[#A7A0AA]'
+                        }`}
+                      />
+                      <span
+                        className={`text-[11px] font-semibold tracking-tight transition-colors ${
+                          active ? 'text-[#F5F1F2]' : 'text-[#A7A0AA]'
+                        }`}
+                      >
+                        {tab.label}
+                      </span>
+                      {active && (
+                        <span className="absolute bottom-0.5 w-6 h-0.5 rounded-full bg-[#C0263D]" />
+                      )}
+                    </>
+                  );
+                }}
+              </NavLink>
+            );
+          })}
+        </nav>
+      )}
+    </div>
+  );
+};

@@ -1,0 +1,6 @@
+{
+  "name": "KAGE — The Anime Universe",
+  "description": "A cinematic anime universe and community platform featuring personalized anime discovery, guilds, fandom discussions, live WebRTC voice rooms, and head-to-head clashes.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

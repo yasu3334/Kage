@@ -1,0 +1,719 @@
+KAGE COMPLETE TECHNICAL AUDIT PROMPT
+CLASH + PULSE + GUILD + IB / INBOX
+THREE-PART MASTER PROMPT — FULL VERSION
+
+PURPOSE
+You are working on my existing KAGE anime social platform. Previous instructions asked you to implement Clash, Pulse, Guild, and IB/Inbox, but these systems are not working as requested.
+
+Your responsibility is to inspect the existing project, establish what actually exists, identify what works, what is incomplete, what is broken, and why. This is an audit first, not permission to rebuild everything.
+
+IMPORTANT WORKFLOW
+Send this document to the existing Replit Agent in three stages if the full text is too long:
+1. PART 1: Project inspection + Clash + Pulse.
+2. PART 2: Guild + IB/Inbox.
+3. PART 3: Shared infrastructure + security + performance + tests + final report.
+
+Send each part in the same Agent conversation, in order. Do not ask the Agent to implement fixes until all three audits and the consolidated report are complete and I explicitly approve the plan.
+
+============================================================
+GLOBAL NON-NEGOTIABLE RULES
+============================================================
+
+1. Inspect the actual existing codebase before drawing conclusions.
+2. Do not modify, delete, replace, or rewrite existing code during the audit.
+3. Do not redesign or replace the existing KAGE interface.
+4. Do not substitute hardcoded data, fake responses, or dummy buttons for real functionality.
+5. A feature is not verified merely because a component, button, route, endpoint, or database table exists.
+6. Verify complete user journeys wherever the environment permits.
+7. Do not reset the database, perform destructive migrations, delete records, or alter production data.
+8. Do not send real public posts, invitations, messages, or notifications during tests. Use an isolated test environment and authorized test accounts.
+9. Never expose passwords, session tokens, API secrets, private messages, or personal information in the report.
+10. Do not invent file paths, database tables, API routes, test results, or performance measurements.
+11. If a requirement cannot be tested, mark it BLOCKED or UNVERIFIED and explain exactly why.
+12. Preserve existing working functionality, usernames, account IDs, database records, design system, and routes.
+13. Search and trace the actual implementation; do not stop after examining a few files.
+14. If a requirement is absent, state that it is missing.
+15. Do not start repairs until the full audit and staged plan are complete and explicitly approved.
+16. Discover the actual technology stack. Do not assume a framework, database, authentication provider, or storage provider.
+17. Do not print secret values from environment files.
+18. If the audit exceeds one response, continue in clearly numbered sections. Do not silently omit requirements or replace detail with “same as above.”
+19. Use safe, authorized testing only.
+20. Do not claim success without evidence.
+
+STATUS DEFINITIONS
+- PASS: Actual behavior was tested successfully with evidence.
+- PARTIAL: Some behavior works, but important requirements remain missing or broken.
+- FAIL: The feature is missing or demonstrably broken.
+- MOCK ONLY: The interface/data is hardcoded or simulated rather than connected to real functionality.
+- BLOCKED: A specific external or environment limitation prevents testing.
+- UNVERIFIED: There is insufficient evidence to confirm behavior.
+
+For EVERY requirement, record:
+- Requirement ID.
+- Expected behavior.
+- Status.
+- Actual file paths and relevant component/function.
+- Relevant API endpoint or server action.
+- Database model/table, where applicable.
+- Actual data flow.
+- Evidence inspected.
+- Test performed and observed result.
+- Exact defect or missing component.
+- User impact.
+- Recommended fix.
+- Dependencies and regression risks.
+
+Do not mark a requirement PASS just because code exists. A successful build or attractive screenshot does not prove end-to-end functionality.
+
+============================================================
+PART 1 — PROJECT INSPECTION + CLASH + PULSE
+============================================================
+
+A. INSPECT THE EXISTING PROJECT
+
+Inspect:
+- Project directory and file structure.
+- Package manifests and installed dependencies.
+- Frontend framework, entry points, layouts, pages, routes, and shared components.
+- Existing design system and styles.
+- Authentication, sessions, and account identity.
+- Backend entry points, middleware, API routes, and server actions.
+- Database provider, schema, models, migrations, relationships, constraints, and indexes.
+- Media storage and upload infrastructure.
+- Realtime services, WebSockets, subscriptions, polling, and background jobs.
+- Notifications infrastructure.
+- Error handling, logging, validation, and authorization.
+- Environment-variable names and configuration, without exposing values.
+- Deployment configuration and runtime logs, if accessible.
+- Existing tests, build scripts, linting, and type checking.
+
+Search the whole project for:
+Clash, duel, challenge, battle, vote, submission, character battle, Pulse, post, feed, like, comment, reply, repost, bookmark, view, mention, media upload, and notification.
+
+Trace each feature from UI through API/server action to database and back. Identify missing links and runtime errors.
+
+Deliver the actual architecture summary:
+1. Frontend framework and relevant versions.
+2. Backend framework and relevant versions.
+3. Database and ORM/query layer.
+4. Authentication/authorization.
+5. Media storage.
+6. Realtime mechanism.
+7. Notification infrastructure.
+8. Relevant file paths.
+9. Relevant database models/tables.
+10. Available build/test commands.
+11. Environment limitations affecting the audit.
+
+B. CLASH — TWO DISTINCT MODES
+
+Clash has two separate modes:
+1. DUEL CLASH: a user challenges another user, or one community challenges another community. The invited opponent must accept before the accepted contest proceeds. Participants submit entries and eligible users vote.
+2. SOLO CHARACTER CLASH: one user creates an anime-character matchup (for example, Goku versus Saitama). No second user needs to accept. The audience votes for the character they believe is more powerful.
+
+Do not treat these modes as interchangeable.
+
+CLASH-01 — Navigation and page structure
+Verify:
+- Clash navigation and page routes work.
+- Direct URLs and refreshes work.
+- Invalid IDs and unavailable competitions are handled safely.
+- Existing KAGE styling is preserved.
+- Mobile, tablet, laptop, and desktop layouts work.
+- Loading, empty, error, and populated states exist.
+- The following sections exist where required: Live, Upcoming, Community Clashes, Character Battles, Completed, My Clashes.
+- Each section uses the correct backend filter.
+- Pagination/load-more does not duplicate records.
+
+CLASH-02 — Creation
+Verify all supported creation modes and fields:
+- User-versus-user.
+- Community-versus-community.
+- Solo Character Clash.
+- Title and description.
+- Opponent/community selection.
+- Character selection from actual catalogue records.
+- Submission media type.
+- Start time and deadline.
+- Voting duration.
+- Reward settings where applicable.
+- Preview, confirmation, cancel/back.
+- Required-field and server-side validation.
+- Database persistence.
+- Duplicate-submission prevention.
+- Invalid IDs, nonexistent opponents, unauthorized communities, and invalid schedules cannot bypass frontend validation.
+
+CLASH-03 — Duel invitations and acceptance
+For user duels:
+- Challenger selects the correct opponent.
+- A real invitation is persisted and sent to the intended recipient.
+- Only that recipient can accept/reject.
+- Acceptance/rejection updates backend state.
+- Challenger cannot impersonate the opponent.
+- Pending/expired invitations are represented correctly.
+- Expired invitations cannot be accepted.
+- Duplicate invitations/retries are handled safely.
+
+For community duels:
+- Both communities exist.
+- The intended community receives the challenge.
+- Only an authorized representative can accept.
+- Ordinary members cannot bypass permission rules.
+- Accepted records identify the correct communities.
+- Membership/role changes do not corrupt the competition.
+- All permissions are enforced server-side.
+
+CLASH-04 — Submission and media uploads
+Verify:
+- Each accepted side can submit.
+- Only authorized participants submit for their side.
+- Each submission belongs to the correct Clash and participant.
+- Real media is uploaded to configured storage.
+- File types and size limits are enforced server-side.
+- Failed uploads do not create inconsistent records.
+- Submissions persist after refresh.
+- Duplicate requests are handled safely.
+- Editing/replacement follows the actual rules.
+- Late submissions are rejected by the server.
+- Participants cannot overwrite the opponent's entry.
+- Missing media has a sensible fallback.
+- Storage permissions, ownership, database references, and orphaned uploads are checked.
+
+CLASH-05 — “View Edit” media viewer
+Verify:
+- Every submitted entry has a functional View Edit action.
+- It opens the actual submitted media, not a placeholder or unrelated image.
+- Large images are shown at a useful size.
+- Aspect ratio is preserved.
+- Loading/broken-media states work.
+- Viewer can close and return to the Clash.
+- Mobile and desktop behavior works.
+- Correct entry is shown.
+- Private media is protected.
+- Viewer does not unintentionally navigate away from KAGE.
+
+CLASH-06 — Voting and results
+Verify:
+- Voting is open only during the valid window.
+- Eligible users can identify the entries/characters.
+- Votes are stored in the backend.
+- Server validates Clash, entry, voter, and deadline.
+- One vote per authenticated account per Clash unless a different explicitly approved rule exists.
+- Repeated requests cannot create duplicate votes.
+- Vote state persists after reload.
+- Totals derive from persisted records.
+- Client cannot set arbitrary totals or vote for invalid entries.
+- Concurrent votes do not corrupt results.
+- Unauthorized voting is rejected.
+- Results, winner, and tie are accurate.
+- Tie rules are explicit and consistently applied.
+A button changing color is not proof of working voting.
+
+CLASH-07 — Solo Character Clash
+Test separately:
+- One user can create a matchup without inviting an opponent.
+- Characters come from real catalogue records.
+- IDs, names, and images match selected characters.
+- Invalid characters are rejected.
+- Matchup persists.
+- Votes target the correct character.
+- One account cannot vote multiple times.
+- Results derive from real votes.
+- Deadlines and closure work.
+- Matchup appears in correct category and completed history.
+- Creator cannot manipulate totals.
+- No opponent acceptance is incorrectly required.
+- Community rewards are not granted by default.
+- UI communicates that power voting is fan opinion, not an official objective ranking.
+
+CLASH-08 — Scheduling and lifecycle
+Inspect applicable states: draft, pending invitation, accepted, scheduled, live, submission period, voting period, completed, tied, cancelled, rejected, expired.
+Verify:
+- Server-authoritative start/end timestamps.
+- Time-zone handling.
+- Invalid schedules are rejected.
+- Activation/closure automation works where required.
+- Late submissions and votes are rejected server-side.
+- Browser clock manipulation cannot bypass deadlines.
+- Refresh after deadline shows correct state.
+- Background job failures are handled.
+- Completed/expired records remain in history according to retention rules.
+- Closed Clashes disappear from active lists without accidental hard deletion.
+- A stale browser timer cannot keep voting open after the server deadline.
+
+CLASH-09 — Rewards and inventory
+Verify:
+- Eligible community duels use actual supported inventory items.
+- Inventory is real, not hardcoded.
+- Invalid/unavailable/unauthorized items cannot be selected.
+- Reward polls, if supported, persist votes.
+- Reward selection permissions are enforced.
+- Rewards are issued only after a valid final result.
+- Ties and cancellations follow explicit rules.
+- Retries/concurrent requests cannot issue rewards twice.
+- Inventory ownership/quantity remains consistent.
+- Reward transactions are recorded and visible to recipients.
+- Solo Character Clash does not trigger Duel rewards.
+If inventory/reward functionality is absent, report it as missing rather than simulating awards.
+
+CLASH-10 — Detail page and sharing
+Verify:
+- Correct title, description, participants, submissions, deadlines, status, and results.
+- Data belongs to the selected Clash ID.
+- Three-dot menu actions work where required.
+- Copy link/share produce valid URLs.
+- Edit/cancel appear only for authorized users in eligible states.
+- Report opens a real reporting flow.
+- Actions persist.
+- Invalid/private links are handled safely.
+- URL manipulation cannot authorize editing another user's Clash.
+- Cancellation preserves required history.
+
+CLASH-11 — Notifications
+Verify actual persisted notifications for applicable:
+- Challenge received.
+- Challenge accepted/rejected.
+- Opponent submitted.
+- Submission deadline approaching, if supported.
+- Voting opened.
+- Competition completed.
+- Win/loss/tie.
+- Reward awarded.
+- Cancellation.
+- Moderation outcomes.
+Check recipients, unread state, duplicate prevention, deep links, and permissions.
+
+CLASH-12 — Abuse and moderation
+Verify:
+- Reporting works and records correct target.
+- Authorized moderators can review reports.
+- Blocked users follow actual restrictions.
+- API calls cannot bypass authorization.
+- Rate limits/abuse controls exist where appropriate.
+- Deleted/restricted accounts are handled.
+- Moderation actions are recorded.
+- Errors do not reveal sensitive server details.
+
+CLASH-13 — Performance
+Inspect query counts, slow queries, missing indexes, repeated requests, unbounded lists, oversized media, thumbnails, vote aggregation, polling, subscriptions, rerenders, bundle size, and memory leaks. Record measured timings only when actually measured; distinguish facts from hypotheses.
+
+C. PULSE — SOCIAL FEED
+
+PULSE-01 — Feed/navigation
+Verify:
+- Routes and navigation work.
+- Feed loads actual backend records and real accounts.
+- Sorting/filtering follows intended behavior.
+- Refresh, pagination, and infinite scroll work without duplicates.
+- Loading, empty, and error states exist.
+- Deleted, blocked, hidden, and moderated posts follow visibility rules.
+- Responsive layouts work.
+
+PULSE-02 — Composer
+Composer placeholder must read exactly:
+“Post about your favourite anime...”
+Verify:
+- Text-only, image, and video posts work.
+- Supported formats and limits are clear.
+- Server assigns authenticated author identity.
+- Invalid empty posts are rejected unless valid media makes them acceptable.
+- Text/media limits are enforced server-side.
+- Upload progress, cancellation, and errors work where supported.
+- Posts persist and appear in feed after refresh.
+- Duplicate clicks do not create duplicate posts.
+- Failed requests do not falsely show success.
+- Direct requests cannot bypass validation.
+
+PULSE-03 — Media storage
+Verify:
+- Actual storage provider and persistence.
+- Correct database references.
+- Media survives refresh and later sessions.
+- Unsupported formats and oversized files are rejected server-side.
+- File type validation does not rely only on extension.
+- Images/videos render correctly.
+- Thumbnail/optimized delivery works where implemented.
+- Video playback works on supported devices.
+- Failed uploads do not leave inconsistent records.
+- Temporary/expired URLs are not treated as permanent.
+- Private files are not accidentally public.
+- Users cannot overwrite another user's files.
+- Orphaned uploads are handled.
+- KAGE does not claim a file is 4K without evidence.
+- Asset usage follows licensing/permission requirements.
+
+PULSE-04 — Post rendering
+Verify correct author/profile links, safe text rendering, correct media, anime references/tags, timestamps, long-text layout, fallbacks for deleted authors/missing media, and correct post-to-card data mapping.
+
+PULSE-05 — Likes/reactions
+Verify persisted like/unlike state, accurate real counts, duplicate prevention, safe repeated requests, persistence after reload, consistency across accounts, server authorization, and correct notification rules. Avoid self-notifications unless required.
+
+PULSE-06 — Comments/replies
+Verify:
+- Comments persist and reference the correct post.
+- Replies reference correct parent comments and display correct hierarchy.
+- Empty/oversized comments are rejected.
+- Editing/deletion follow permissions.
+- Deleted comments are handled consistently.
+- Counts use real records.
+- Pagination works.
+- Refresh preserves discussions.
+- Malicious HTML/scripts cannot execute.
+- Replies cannot target unrelated/nonexistent posts.
+- Notifications target correct users.
+- Failed requests do not falsely display saved comments.
+
+PULSE-07 — Anime sticker picker
+Verify:
+- Opens/closes.
+- Stickers come from actual configured source.
+- Selected sticker reference is correct.
+- Sticker comments persist and render after refresh.
+- Invalid IDs are rejected.
+- Missing assets have fallbacks.
+- Mobile interaction works.
+- No duplicate comments are created.
+- Permissions/moderation apply.
+
+PULSE-08 — Repost/quote repost
+Verify separately:
+- Repost references original post.
+- Quote repost stores added text and original reference.
+- Both persist with correct identities.
+- Counts derive from real records.
+- Duplicate behavior follows intended rules.
+- Unrepost removes correct relationship.
+- Deleted/moderated originals are handled.
+- Visibility/block rules apply.
+- Reposts are not incorrectly stored as fake independent originals.
+
+PULSE-09 — Bookmarks
+Verify bookmark/unbookmark, persistence across sessions, privacy, correct saved records, deleted-post handling, duplicate prevention, and reload behavior.
+
+PULSE-10 — Genuine video views
+View counts must not be hardcoded/decorative.
+Verify:
+- A defined view-counting rule exists.
+- Real viewing events are recorded against the correct video/post.
+- Page impressions are not counted as meaningful views unless that is the explicit rule.
+- Any viewing threshold is enforced.
+- Repeated refresh/replay does not inflate counts uncontrollably.
+- Anonymous/authenticated view policy is explicit.
+- Abuse protections are considered.
+- Client cannot submit arbitrary totals.
+- Concurrent events are handled safely.
+- UI count derives from persisted data.
+- Deduplication window and identity method are documented.
+If genuine tracking is absent, mark FAIL.
+
+PULSE-11 — Mentions/anime tags
+Verify real account resolution, correct notifications, invalid username handling, valid catalogue references where supported, tag search/links, persistence, deleted/renamed account handling, and safe input validation.
+
+PULSE-12 — Sharing
+Verify copy/share actions, correct post URLs, privacy protection, deleted-post handling, no accidental repost creation, and valid deployed URLs.
+
+PULSE-13 — Notifications
+Verify actual notifications for applicable likes, comments, replies, mentions, reposts, and quote reposts. Check persistence, correct recipients, unread state, duplicate prevention, deep links, and block/visibility rules.
+
+PULSE-14 — Reporting/moderation
+Verify reports persist with correct target/reason, moderation data is private, authorized moderators can review, removals/restrictions/restorations affect real content, outcomes are communicated where supported, blocks work consistently, content is not merely hidden in the browser while accessible through APIs, and unrelated records are not destroyed.
+
+PULSE-15 — Performance
+Inspect feed load, query counts, N+1 queries, pagination, thumbnails, video autoplay, media payloads, duplicate requests, infinite-scroll duplication, optimistic updates/rollback, rerenders, cache invalidation, indexes, slow endpoints, retries, and memory leaks. Never replace real feed data with a small fake dataset to make it appear faster.
+
+PART 1 REQUIRED OUTPUT
+Provide the actual architecture and requirement-by-requirement findings for Clash and Pulse. Every finding must include ID, status, expected behavior, actual file paths, endpoint/server action, database model where relevant, data flow, evidence, tests/results, exact defect, impact, and recommended fix. Include dependencies and regression risks. Do not implement fixes.
+
+============================================================
+PART 2 — GUILD + IB / INBOX
+============================================================
+
+A. GUILD — COMPLETE COMMUNITY AUDIT
+
+GUILD-01 — Navigation/discovery
+Verify routes, listing, real records, loading/empty/error states, search/filter/sort where supported, pagination, correct card details/member counts, detail navigation, refresh/direct URLs, invalid/deleted/restricted Guild handling, responsive layout, and whether cards are hardcoded.
+
+GUILD-02 — Creation
+Verify reachable creation flow, authorization, required-field validation, backend-enforced name uniqueness, safe slug/ID generation, persistence of description/media/settings, correct initial owner role/membership, real storage, server-side type/size validation, no partial records on failure, duplicate prevention, direct-request validation, and visibility in discovery/profile after refresh.
+
+GUILD-03 — Detail page
+Verify correct Guild identity, owner/moderator identities, member counts from real membership records, current user's membership state, join/leave actions, correct Guild content, private/restricted access, invalid-route handling, refresh persistence, responsive layout, and missing-media/account fallbacks.
+
+GUILD-04 — Membership lifecycle
+Test public join, leave, private join where supported, join requests, approvals/rejections, invitations, acceptance/rejection, removal, ban/restriction if supported, and rejoin rules. Verify correct authenticated user/Guild, backend permissions, persistence, accurate counts, notifications, refresh behavior, duplicate prevention, retries, expired/revoked invitations, concurrency, privacy restrictions, and bans.
+
+GUILD-05 — Ownership and roles
+Discover the actual role model and produce a permission matrix for owner, administrators, moderators, ordinary members, non-members, and platform moderators where applicable.
+
+Verify actual permissions for editing settings, changing identity/media, announcements, pins, content removal, member management, invitations, join approvals, appointing/removing moderators, ownership transfer, and deleting/archiving Guilds if supported.
+
+Test that:
+- Unauthorized roles cannot perform restricted actions via direct API calls.
+- Users cannot promote themselves.
+- Removing a moderator revokes permissions.
+- Ownership transfer validates the receiving account.
+- Owner departure is handled safely.
+- Guild is not left without required administrative access.
+- Changes persist.
+- Roles are scoped to the correct Guild.
+- Moderators cannot manage unrelated Guilds without broader permissions.
+
+Do not assume role functionality exists because a role label is visible.
+
+GUILD-06 — Settings and identity
+Inspect name, description, icon/profile image, banner, privacy/visibility, membership policy, and other existing settings. Verify validation, authorization, upload handling, persistence, display consistency, and error recovery. Identify settings that appear editable but do not persist.
+
+GUILD-07 — Guild feed/posts
+Verify correct Guild association, member posting permissions, text/image/video support where implemented, real uploads, persistence, correct feed, sorting/pagination, likes/comments, private content access, deletion/moderation, no cross-Guild data leaks, correct integration with Pulse/profile where intended, and permission-respecting deletion.
+
+GUILD-08 — Discussions/interactions
+Audit implemented comments/replies, reactions, announcements, pinned posts, polls, events, mentions, editing/deleting, sharing, reporting, and moderation. Verify real persistence, permissions, correct IDs, refresh behavior, notifications, error handling, and block/restriction behavior. Mark absent features missing.
+
+GUILD-09 — Member management
+Verify real member list, search/filter where offered, accurate counts, correct targets for owner/moderator actions, kick/ban/mute/restrictions if supported, authorization, revoked moderator permissions, re-entry restrictions, persistence, and deleted/suspended account handling.
+
+GUILD-10 — Invitations/notifications
+Verify correct recipient/Guild, persistence, recipient-only acceptance/rejection, expired/revoked invitation rejection, join-request notifications to authorized users, correct membership changes, relevant join/leave/removal/role/announcement notifications, correct links, duplicate prevention, privacy, and read/unread state.
+
+GUILD-11 — Reporting/blocking/moderation
+Verify reports for Guilds/posts/members where supported, persistence and correct target/reason, authorized moderation access, Guild-scoped moderator permissions, separate platform-wide permissions, blocking/visibility consistency, no hidden-but-API-accessible content, audit trail, appeals/restoration if implemented, and no accidental removal of unrelated content.
+
+GUILD-12 — Integrity/performance
+Inspect membership uniqueness, foreign keys, member counts, N+1 queries, large feeds, image/banner sizes, permission-query cost, search, pagination, repeated requests, cache correctness, concurrent joins/leaves, role/ownership race conditions, indexes, slow endpoints, and rerenders.
+
+B. IB / INBOX — COMPLETE PRIVATE MESSAGING AUDIT
+
+IB-01 — Navigation/access
+Verify Inbox route/entry point, authenticated user's own conversations, correct history, persistence after refresh, loading/empty/error states, responsive layout, invalid IDs, protection against URL/API manipulation, and session expiry.
+
+IB-02 — Conversation creation
+Verify allowed initiation, correct recipient, persisted conversation, correct participant records, duplicate handling, no unauthorized third participants, block/message-request rules, invalid recipient rejection, concurrent request safety, inbox appearance, and refresh persistence.
+
+IB-03 — Sending messages
+Verify supported message types, persisted text, server-assigned sender identity, correct recipient/conversation, empty-message validation unless valid attachment, length/payload limits, correct ordering/timestamps, participant authorization, no sender impersonation, retry duplicate prevention, accurate failure states, and retrieval after refresh.
+
+IB-04 — Receiving/live updates
+Discover actual WebSocket/subscription/polling implementation. Verify correct recipient, open-conversation updates where supported, missed-message retrieval, multi-session consistency, interruption/reconnection, no duplicate messages, ordering, reasonable load, subscription authorization, and honest description of fallback if realtime is absent.
+
+IB-05 — Conversation list
+Verify authorized conversations only, correct latest-message preview/timestamp, sorting, persisted unread indicators, deleted/unavailable participant fallbacks, mute/archive rules if supported, new conversations, pagination, and consistent state after opening a conversation.
+
+IB-06 — Delivery/read receipts
+Audit Sending, Sent, Delivered, Read, and Failed states where supported. Verify real state transitions, persistence, no premature read receipt, correct recipient/message association, privacy, safe repeated updates, multi-device consistency, truthful failure state, and no claims for unsupported receipts.
+
+IB-07 — Unread counts/badge
+Verify counts derive from persisted data, opening a conversation updates only correct read state, mark-as-read affects correct conversation, global Inbox badge is accurate, refresh/multi-session consistency, concurrent message handling, no unauthorized read-state manipulation, and no hardcoded numbers.
+
+IB-08 — Message requests/privacy
+Where implemented, verify persisted requests, recipient-only accept/reject, correct rejected-request restrictions, server-enforced privacy, blocked-user restrictions, correct notifications, effective privacy changes, separation of public profile and private messages, and safe rejection of unauthorized requests. Mark absent features as missing.
+
+IB-09 — Attachments/stickers
+For implemented images/videos/files/stickers, verify supported types, validation, storage references, access permissions, size limits, loading/failure states, correct rendering, missing-asset fallbacks, persistence, no cross-user overwrite, and actual sending/saving of stickers.
+
+IB-10 — Editing/deletion
+Where supported, verify sender permissions, retention rules, consistent updates for both participants, correct target only, required historical state, authorization, conversation preview/unread consistency, and accurate failure behavior. Do not delete production messages in tests.
+
+IB-11 — Blocking/muting/reporting
+Verify persisted blocking, enforcement of prohibited messages, existing conversation policy, distinction between mute and block, correct report targets, private content protection, audited moderation access, no duplicate-conversation bypass, and reasonable spam/rate-limit protections.
+
+IB-12 — Inbox security
+Inspect authentication, participant authorization, object-level access checks, ID validation, input sanitization, rate limits, attachment access, sensitive logs, private-data exposure through APIs, WebSocket authorization, database queries that might expose other users' messages, and unsafe error responses. Test only with authorized accounts.
+
+IB-13 — Inbox performance
+Inspect message pagination, conversation-list queries, unread count cost, indexes, polling, subscriptions, reconnect behavior, duplicate requests, large histories, media thumbnails, list rendering, concurrent sends, memory leaks, retries, and slow routes.
+
+PART 2 REQUIRED OUTPUT
+For every Guild and Inbox requirement, provide ID, expected behavior, status, actual file paths, relevant endpoints/server actions, database models, data flow, evidence, test/results, defect, impact, and recommended fix, including dependencies and regression risks. Include a Guild permission matrix and Inbox access matrix. List mockups, hardcoded responses, nonfunctional buttons, missing endpoints, broken relationships, and unverified workflows. Do not implement fixes.
+
+============================================================
+PART 3 — SHARED SYSTEMS + SECURITY + PERFORMANCE + TESTING + REPORT
+============================================================
+
+A. SHARED AUTHENTICATION/IDENTITY
+Verify trusted server-side identity, protected routes, no client-supplied-ID impersonation, consistent usernames/account IDs across all features, existing ID preservation, actual uniqueness rules, session expiration/logout, server-side permission checks, handling of deleted/suspended accounts, and minimum necessary API data exposure.
+
+B. DATABASE INTEGRITY/MIGRATIONS
+Inspect primary/foreign keys, unique constraints, nullable fields, indexes, referential integrity, cascades, transactions, duplicates, orphaned records, missing tables/columns, relationship errors, schema drift, migration history, concurrency, and failed-query handling.
+
+Inspect relationships among:
+- Users/accounts.
+- Posts, likes, comments, replies, reposts, bookmarks, and views.
+- Guilds, memberships, roles, invitations, and community posts.
+- Clashes, participants, invitations, submissions, votes, results, and rewards.
+- Conversations, participants, messages, read states, and message requests.
+- Notifications and target records.
+- Media and owners/content.
+
+Explain cross-feature failure risks. Do not reset databases or execute destructive migrations. Describe required safe migrations and data-preservation risks without executing them.
+
+C. SHARED NOTIFICATIONS
+Audit real persisted notifications for Pulse engagement, Guild invitations/membership/roles/announcements, Clash events, and Inbox messages/requests. Verify correct recipient/source, read/unread state, accurate counts, duplicate prevention, correct links, safe deleted-target handling, privacy, authorization, realtime/polling behavior, and reconnection without duplicates.
+
+D. SHARED MEDIA
+Identify actual storage provider and database references. Verify upload authorization, ownership, allowed types, size limits, server validation, processing, thumbnails, public/private rules, signed URL expiration, broken media handling, failed uploads, orphan cleanup, unauthorized replacement/deletion, permanent versus temporary URLs, and asset licensing/permissions.
+
+E. UI AND RESPONSIVE DESIGN
+Preserve KAGE palette:
+- Background #09080B
+- Card #141116
+- Primary text #F5F1F2
+- Secondary text #A7A0AA
+- Crimson #C0263D
+- Violet #6D28D9
+
+Audit navigation, shared components, buttons/menus, loading/empty/success/error states, form messages, modal/viewer closing, keyboard focus, mobile touch targets, readability, long content, media aspect ratios, phone/tablet/laptop/desktop layouts, dynamic data breakage, and controls that look functional but are not connected to backend actions. Do not redesign or replace existing pages.
+
+F. SECURITY
+Separate confirmed vulnerabilities from potential risks needing more tests. Inspect authentication bypass, object-level authorization, impersonation, unauthorized post/Guild/Clash modifications, vote manipulation, private message disclosure, insecure uploads, validation/sanitization, XSS/injection risks relevant to the stack, CSRF where applicable, insecure direct object references, rate limits, sessions, secrets in client bundles, sensitive logs, unsafe errors, realtime authorization, and notification permissions.
+
+For each finding give ID, affected feature/action, severity and rationale, confirmed versus potential, evidence, impact, recommended mitigation, and tests required. Do not expose secrets or private content.
+
+G. PERFORMANCE/RELIABILITY
+Inspect initial load, navigation, Clash lists/details, Pulse feed/scroll, Guild discovery/feed, Inbox conversations/history, query counts, slow/N+1 queries, missing indexes, unbounded lists, pagination, duplicate requests, oversized media, thumbnails, bundles, rerenders, polling, subscriptions, memory leaks, unhandled rejections, retries, cache correctness, slow actions, background jobs, deadlines, and concurrency.
+
+For each confirmed issue provide affected route/component/query/endpoint, evidence, measured timing if obtained, environment/method, likely cause, recommended fix, dependencies, regression risk, and verification method. Distinguish measured facts from hypotheses. Never invent measurements or claim untested improvements.
+
+H. BUILD AND TESTS
+Inspect available scripts/environment. Run safe available build, type-check, lint, automated tests, schema validation, unit/integration tests, browser/UI tests, API tests, and end-to-end workflows.
+
+For every command report exact command, environment, exit result, relevant output/error, completion status, and what requirement it verifies. Do not change code just to make the audit appear successful. Mark unavailable tests BLOCKED and explain why.
+
+END-TO-END SCENARIO 1 — PULSE
+1. Create a post with test user A.
+2. Confirm it is persisted.
+3. Refresh/retrieve it.
+4. Like it from test user B.
+5. Verify real like/count.
+6. Comment and verify persistence.
+7. Attempt duplicate like and confirm rejection.
+8. Verify expected notification.
+9. Test media upload/retrieval if available.
+
+END-TO-END SCENARIO 2 — GUILD
+1. Create test Guild.
+2. Verify owner/membership records.
+3. Join from another test account.
+4. Verify persistence/count.
+5. Create Guild post if supported.
+6. Verify correct Guild displays it.
+7. Attempt owner-only action as ordinary member.
+8. Confirm server rejects it.
+9. Leave Guild and verify membership/count.
+
+END-TO-END SCENARIO 3 — DUEL CLASH
+1. Create test user-versus-user Clash.
+2. Verify pending state.
+3. Accept from intended opponent.
+4. Verify persisted state.
+5. Submit entries from both authorized sides.
+6. Verify ownership/media references.
+7. Open View Edit for both.
+8. Vote from eligible account.
+9. Attempt second vote from same account.
+10. Verify duplicate vote is rejected.
+11. Test result and deadline behavior where practical.
+
+END-TO-END SCENARIO 4 — SOLO CHARACTER CLASH
+1. Create matchup using actual character catalogue records.
+2. Confirm no opponent acceptance is required.
+3. Verify correct characters/images.
+4. Vote from eligible account.
+5. Verify persistence.
+6. Attempt duplicate vote.
+7. Test results/closure where practical.
+8. Verify correct history category.
+
+END-TO-END SCENARIO 5 — INBOX
+1. Create conversation between authorized test accounts.
+2. Send message.
+3. Verify persistence.
+4. Retrieve as recipient.
+5. Reply.
+6. Verify both users can retrieve correct history.
+7. Check ordering/unread counts.
+8. Check delivery/read indicators only if implemented.
+9. Attempt access as unrelated test user C.
+10. Verify access is denied.
+
+Never send real public posts or messages to actual users during testing.
+
+I. FINAL CONSOLIDATED REPORT
+
+Produce one consolidated report from all three parts. Report actual findings, not a restatement of this prompt.
+
+REPORT 1 — Executive summary
+For Clash, Pulse, Guild, and Inbox, count actual audited requirements in PASS, PARTIAL, FAIL, MOCK ONLY, BLOCKED, and UNVERIFIED. Explain unassessed requirements.
+
+REPORT 2 — Architecture
+Document actual frontend/backend/database/authentication/media/notification/realtime architecture, relevant file paths, and feature integrations.
+
+REPORT 3 — Complete requirement matrix
+Include EVERY requirement from all three parts, with ID, expected behavior, status, evidence, actual file paths, endpoint/server action/model, actual test result, defect, and recommendation. Do not omit or summarize away requirements.
+
+REPORT 4 — Missing/nonfunctional functionality
+List unimplemented features, mock pages/data, dead buttons, missing endpoints, endpoints that do not persist, missing models/relationships, broken navigation, incorrect state transitions, missing validation/permissions, browser-session-only behavior, and unverified workflows. Distinguish confirmed defects from unverified risks.
+
+REPORT 5 — File-by-file defects
+For every major issue give actual path, relevant component/function/endpoint/query/model, current behavior, failure reason, required change, dependencies, regression risks, and verification tests. Use only inspected paths and do not fabricate line numbers.
+
+REPORT 6 — Database/backend defects
+Document schema gaps, relationships, constraints, queries, authorization, broken endpoints, persistence, concurrency, migrations, and media storage. Explain cross-feature effects.
+
+REPORT 7 — Frontend defects
+Document dead controls, mock content, incorrect API wiring, state management, loading/error gaps, responsive defects, and UI/backend inconsistencies.
+
+REPORT 8 — Security
+Separate confirmed vulnerabilities from potential risks, with evidence, severity, affected actions, impact, and remediation.
+
+REPORT 9 — Performance
+Rank confirmed issues by impact, with measurements where obtained and clearly labelled hypotheses.
+
+REPORT 10 — Test results
+For each test provide ID, feature, preconditions, actions/command, expected result, actual result, status, evidence, and blocker if any. A successful build does not prove end-to-end functionality.
+
+REPORT 11 — Prioritized implementation roadmap
+Do not execute it yet.
+
+Priority 0: Build/runtime failures, crashes, broken routes, critical configuration.
+Priority 1: Authentication/authorization, private-data protection, database integrity, unsafe uploads.
+Priority 2: Core real functionality for Clash, Pulse, Guild, Inbox.
+Priority 3: Notifications, media, sharing, permissions, background jobs, deadlines, shared identity.
+Priority 4: Performance, pagination, optimization, realtime reliability, error recovery.
+Priority 5: Responsive/UI quality and remaining edge cases.
+
+For every task include:
+- Task ID.
+- Known files/schema areas.
+- Root cause and evidence.
+- Dependencies.
+- Acceptance criteria.
+- Required tests.
+- Regression risks.
+- Migration requirements.
+- Existing-user-data risk.
+- Recommended order.
+
+Keep tasks small enough to implement and test without rewriting the whole project.
+
+REPORT 12 — Acceptance criteria
+A feature is not complete merely because its page renders. Applicable criteria include working navigation, authentication/authorization, real backend integration, persistence after refresh, correct behavior with a second authorized account, validation/failure handling, correct notifications/permissions, security checks, responsive behavior, relevant passing tests, and no known critical regressions. List all blocked/unverified requirements.
+
+REPORT 13 — Honest final statement
+Answer:
+1. Which systems work end to end?
+2. Which are partial?
+3. Which are primarily mockups?
+4. What are the ten highest-priority confirmed problems?
+5. What is the safest first repair?
+6. What must be fixed before adding features?
+7. What remains unverified and why?
+8. Which files/database areas need changes?
+9. Which changes risk existing data?
+10. Which tests must pass before KAGE can be called functional?
+
+FINAL INSTRUCTION
+Complete the audit before implementing anything. Do not claim a test passed unless it was run and observed. Do not claim everything is complete without evidence. If the report is too long, continue in numbered sections until all requirements are addressed.
+
+Preserve working functionality, existing KAGE branding, account identity, and user data. Once the complete audit and staged plan are delivered, STOP and wait for my explicit approval before changing code.
+
+I want an honest, detailed diagnosis of the real project—not another promise, generic explanation, or replacement mockup.
