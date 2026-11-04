@@ -27,9 +27,11 @@ export const KageImage: React.FC<KageImageProps> = ({
   priority = false,
 }) => {
   const [failed, setFailed] = useState(false);
+  const [retryWithFallback, setRetryWithFallback] = useState(false);
 
   useEffect(() => {
     setFailed(false);
+    setRetryWithFallback(false);
   }, [src]);
 
   const resolved = strictArtwork
@@ -38,7 +40,12 @@ export const KageImage: React.FC<KageImageProps> = ({
       : ''
     : resolveAssetUrl(src);
 
-  if (failed || !resolved) {
+  // If initial load failed and wasn't already a local bundled asset, fall back smoothly to local anime artwork
+  const currentSrc = retryWithFallback
+    ? '/assets/extracted/solo-hero-home.jpg'
+    : resolved;
+
+  if (failed || !currentSrc) {
     return (
       <div
         className={`flex flex-col items-center justify-center bg-gradient-to-br from-[#1C1720] via-[#141116] to-[#09080B] text-[#A7A0AA] p-3 text-center select-none ${className}`}
@@ -59,13 +66,19 @@ export const KageImage: React.FC<KageImageProps> = ({
 
   return (
     <img
-      src={resolved}
+      src={currentSrc}
       alt={alt}
       referrerPolicy="no-referrer"
       loading={priority ? 'eager' : 'lazy'}
       fetchPriority={priority ? 'high' : 'auto'}
       decoding={priority ? 'sync' : 'async'}
-      onError={() => setFailed(true)}
+      onError={() => {
+        if (!strictArtwork && !retryWithFallback && resolved && !resolved.startsWith('/assets/')) {
+          setRetryWithFallback(true);
+        } else {
+          setFailed(true);
+        }
+      }}
       className={className}
     />
   );

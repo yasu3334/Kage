@@ -33,6 +33,7 @@ import { KageModal } from '../components/KageModal';
 import { kageSound } from '../lib/soundEngine';
 import { ALL_GENRE_NAMES } from '../lib/genres';
 import { formatCompactNumber } from '../lib/formatters';
+import { STATIC_CLASH_ITEMS } from '../lib/staticClashesFallback';
 
 type ClashMode = 'user_duel' | 'community_duel' | 'solo_character';
 type ClashTab = 'all' | 'live' | 'upcoming' | 'community' | 'character' | 'completed' | 'mine';
@@ -412,6 +413,9 @@ export const ClashPage: React.FC = () => {
         setHasMore(Boolean(res.hasMore));
       } catch (err) {
         console.error('Failed to load clashes:', err);
+        if (resetOffset) {
+          setClashes(STATIC_CLASH_ITEMS as any);
+        }
       } finally {
         setLoading(false);
         setLoadingMore(false);
@@ -1614,6 +1618,66 @@ export const ClashPage: React.FC = () => {
           {renderClashCard(focusedClash, true)}
         </section>
       )}
+
+      {/* Quick Clash Composer Card (Prompting community debates & duels just like PULSE) */}
+      <div className="rounded-2xl bg-[#141116] border border-white/10 p-3.5 sm:p-4 space-y-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-[#C0263D]/20 border border-[#C0263D]/40 flex items-center justify-center shrink-0">
+            <Swords className="w-4 h-4 text-[#C0263D]" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-xs sm:text-sm font-bold text-[#F5F1F2] truncate">
+              Spark an Anime War — Launch a Challenge
+            </h2>
+            <p className="text-[11px] text-[#A7A0AA] truncate">
+              Pitch any 2 characters, guilds, or theories. The community votes in real time.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (!user) {
+                navigate('/auth/login');
+                return;
+              }
+              setCreateOpen(true);
+            }}
+            className="min-h-[38px] px-4 rounded-xl bg-[#C0263D] hover:bg-[#d42b44] text-xs font-semibold text-white flex items-center gap-1.5 shrink-0 kage-press cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Launch Clash</span>
+          </button>
+        </div>
+
+        {/* Quick Battle Idea Badges */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar text-xs">
+          <span className="text-[11px] text-[#A7A0AA] shrink-0 font-medium mr-1">Trending Matchups:</span>
+          {[
+            { label: 'Gojo vs Sukuna', mode: 'solo_character', title: 'Gojo Satoru vs Ryomen Sukuna: Peak Sorcery' },
+            { label: 'Luffy vs Naruto', mode: 'solo_character', title: 'Gear 5 Sun God Nika vs Baryon Mode' },
+            { label: 'Zoro vs Levi', mode: 'solo_character', title: "King of Hell vs Humanity's Strongest" },
+            { label: 'Zenitsu vs Killua', mode: 'solo_character', title: 'Godspeed Thunder: Blinding Velocity Showdown' },
+            { label: 'Light vs Lelouch', mode: 'solo_character', title: 'Mastermind Warfare: Death Note vs Geass' },
+          ].map((idea) => (
+            <button
+              key={idea.label}
+              type="button"
+              onClick={() => {
+                if (!user) {
+                  navigate('/auth/login');
+                  return;
+                }
+                setTitle(idea.title);
+                setCreateMode(idea.mode as any);
+                setCreateOpen(true);
+              }}
+              className="px-2.5 py-1 rounded-lg bg-[#09080B] hover:bg-[#1C1720] border border-white/10 hover:border-[#C0263D]/60 text-[11px] text-[#D8D2DC] hover:text-[#F5F1F2] shrink-0 transition-colors cursor-pointer"
+            >
+              {idea.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Search & Mode Tabs */}
       <div className="space-y-3">

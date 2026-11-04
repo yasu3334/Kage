@@ -24,6 +24,7 @@ import {
   PopularNowBanner,
   type RealmsAnimeItem,
 } from '../components/RealmsComponents';
+import { getStaticRealmsFallback } from '../lib/staticRealmsFallback';
 
 interface RealmCarouselRowData {
   definition: RealmSectionDefinition;
@@ -69,8 +70,9 @@ export const HomePage: React.FC<HomePageProps> = ({ onReplayIntro }) => {
     try {
       const res = await apiFetch<RealmsHomeResponse>('/api/realms/home');
       setData(res);
-    } catch (err: any) {
-      setError(err.message || 'Unable to load KAGE Realms right now.');
+    } catch {
+      // Seamless static fallback so Vercel deployments and offline views never show an empty screen
+      setData(getStaticRealmsFallback() as unknown as RealmsHomeResponse);
     } finally {
       setLoading(false);
     }

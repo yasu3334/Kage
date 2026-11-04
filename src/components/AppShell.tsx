@@ -17,6 +17,7 @@ import {
   Settings,
   Star,
   Swords,
+  User,
   Users,
   X,
   Zap,
@@ -282,15 +283,11 @@ export const AppShell: React.FC<AppShellProps> = ({ children, onReplayIntro }) =
           ) : (
             <Link
               to="/auth/welcome"
-              aria-label="Profile / Sign In"
+              aria-label="Sign In to KAGE"
               className="min-h-[44px] min-w-[42px] flex items-center justify-center rounded-xl kage-press"
             >
-              <div className="w-8 h-8 rounded-full overflow-hidden bg-[#141116] border border-white/20">
-                <KageImage
-                  src="asset:avatar_default"
-                  alt="Sign in to KAGE"
-                  className="w-full h-full object-cover"
-                />
+              <div className="w-8 h-8 rounded-full flex items-center justify-center bg-[#141116] border border-white/20 text-[#A7A0AA] hover:text-white transition-colors" title="Guest (Sign in)">
+                <User className="w-4 h-4" />
               </div>
             </Link>
           )}

@@ -39,7 +39,7 @@ export const CURATED_ANIME_CHARACTERS: CatalogueCharacter[] = [
     malId: 146156,
     name: 'Tanjiro Kamado',
     animeTitle: 'Demon Slayer: Kimetsu no Yaiba',
-    imageUrl: 'https://cdn.myanimelist.net/images/characters/16/384829.jpg',
+    imageUrl: 'https://cdn.myanimelist.net/images/characters/6/386735.jpg',
     favorites: 74000,
   },
   {
@@ -144,7 +144,7 @@ export const CURATED_ANIME_CHARACTERS: CatalogueCharacter[] = [
     malId: 5,
     name: 'Ichigo Kurosaki',
     animeTitle: 'Bleach: Thousand-Year Blood War',
-    imageUrl: 'https://cdn.myanimelist.net/images/characters/3/488894.jpg',
+    imageUrl: 'https://cdn.myanimelist.net/images/characters/3/512788.jpg',
     favorites: 78000,
   },
   {
@@ -179,7 +179,7 @@ export const CURATED_ANIME_CHARACTERS: CatalogueCharacter[] = [
     malId: 422,
     name: 'Guts',
     animeTitle: 'Berserk',
-    imageUrl: 'https://cdn.myanimelist.net/images/characters/15/513158.jpg',
+    imageUrl: 'https://cdn.myanimelist.net/images/characters/13/284125.jpg',
     favorites: 97000,
   },
   {

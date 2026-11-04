@@ -359,8 +359,18 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({
       aria-modal="true"
       aria-label="KAGE — The Anime Universe Opening Intro"
       onClick={() => {
-        if (autoplayBlockedCompletely && !showStaticBrandFallback) {
+        if (showStaticBrandFallback) return;
+        const vid = videoRef.current;
+        if (!vid) return;
+        if (vid.paused) {
           void startPlayback(true);
+        } else if (vid.muted) {
+          vid.muted = false;
+          vid.volume = Math.max(
+            0.35,
+            Math.min(1, (kageSound.getPreferences().soundVolume || 80) / 100)
+          );
+          setIsMuted(false);
         }
       }}
       className={`fixed inset-0 z-[120] w-screen h-dvh bg-[#09080B] text-[#F5F1F2] overflow-hidden select-none flex items-center justify-center transition-all duration-500 ease-out transform-gpu ${
@@ -426,6 +436,20 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({
               >
                 <Play className="w-4 h-4 fill-white shrink-0" />
                 <span>Play KAGE Intro</span>
+              </button>
+            </div>
+          )}
+
+          {/* Tap-to-Unmute Floating Hint Pill when video begins muted due to browser policy */}
+          {isMuted && videoStarted && !autoplayBlockedCompletely && (
+            <div className="absolute bottom-6 inset-x-0 z-20 flex justify-center pointer-events-none px-4">
+              <button
+                type="button"
+                onClick={handleToggleMute}
+                className="pointer-events-auto min-h-[38px] px-4 py-1.5 rounded-full bg-[#09080B]/85 hover:bg-[#141116] border border-amber-400/40 hover:border-amber-400 text-xs font-semibold text-amber-200 hover:text-white flex items-center gap-2 shadow-[0_4px_20px_rgba(0,0,0,0.6)] backdrop-blur-md animate-pulse cursor-pointer transition-all"
+              >
+                <Volume2 className="w-4 h-4 text-amber-400" />
+                <span>Tap for Authentic Intro Sound 🔊</span>
               </button>
             </div>
           )}
