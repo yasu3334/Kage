@@ -40,10 +40,7 @@ export const KageImage: React.FC<KageImageProps> = ({
       : ''
     : resolveAssetUrl(src);
 
-  // If initial load failed and wasn't already a local bundled asset, fall back smoothly to local anime artwork
-  const currentSrc = retryWithFallback
-    ? '/assets/extracted/solo-hero-home.jpg'
-    : resolved;
+  const currentSrc = resolved;
 
   if (failed || !currentSrc) {
     return (

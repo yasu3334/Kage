@@ -134,52 +134,8 @@ export const SoundProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     if (wasVoice && !isVoice) {
       kageSound.play('voice_leave');
-      return;
-    }
-
-    const prevNav = inferNavigationSound(prev);
-    const nextNav = inferNavigationSound(curr);
-    if (nextNav && nextNav !== prevNav) {
-      kageSound.play(nextNav);
     }
   }, [location.pathname]);
-
-  // Delegated interactive button audio feedback across the entire KAGE UI
-  useEffect(() => {
-    const onGlobalClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (!target) return;
-      const interactive = target.closest('button, a, [role="button"]') as HTMLElement | null;
-      if (!interactive) return;
-      if ((interactive as HTMLButtonElement).disabled) return;
-
-      // Links that trigger route changes will be handled by the route transition effect
-      if (interactive.tagName === 'A') {
-        const href = interactive.getAttribute('href') || '';
-        if (
-          href === '/' ||
-          href.startsWith('/realms') ||
-          href.startsWith('/pulse') ||
-          href.startsWith('/guilds') ||
-          href.startsWith('/clash') ||
-          href.startsWith('/inbox') ||
-          href.startsWith('/profile')
-        ) {
-          return;
-        }
-      }
-
-      const soundId = classifyInteractiveButtonSound(interactive);
-      if (soundId) {
-        kageSound.play(soundId);
-      }
-    };
-
-    document.addEventListener('click', onGlobalClick, true);
-    return () => {
-      document.removeEventListener('click', onGlobalClick, true);
-    };
-  }, []);
 
   // Real-time WebSocket notification & live room audio cues
   useEffect(() => {

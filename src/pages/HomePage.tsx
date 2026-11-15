@@ -254,7 +254,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onReplayIntro }) => {
   } = data;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* 1. Popular Now Cinematic Hero Banner */}
       {featured && (
         <PopularNowBanner
@@ -265,17 +265,17 @@ export const HomePage: React.FC<HomePageProps> = ({ onReplayIntro }) => {
       )}
 
       {/* 2. Categories Heading + Zero-Duplicate Single-Category Horizontal Carousels */}
-      <section className="space-y-4" aria-label="Anime Categories">
+      <section className="space-y-5" aria-label="Anime Categories">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <h2 className="text-lg sm:text-xl font-bold text-[#F5F1F2] tracking-tight">
             Categories
           </h2>
-          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 flex-wrap">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
             {onReplayIntro && (
               <button
                 type="button"
                 onClick={onReplayIntro}
-                className="min-h-[36px] px-2.5 rounded-lg bg-[#141116] hover:bg-[#1C1720] border border-white/10 text-xs font-medium text-[#A7A0AA] hover:text-[#F5F1F2] inline-flex items-center gap-1.5 kage-press whitespace-nowrap shrink-0 cursor-pointer"
+                className="min-h-[38px] px-3 py-1.5 rounded-xl bg-[#141116] hover:bg-[#1C1720] border border-white/[0.09] text-xs font-medium text-[#A7A0AA] hover:text-[#F5F1F2] inline-flex items-center gap-1.5 kage-press whitespace-nowrap shrink-0 cursor-pointer transition-colors"
                 title="Replay KAGE Opening Intro"
               >
                 <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
@@ -295,14 +295,14 @@ export const HomePage: React.FC<HomePageProps> = ({ onReplayIntro }) => {
                 const rid = getAnimeRouteId(picked);
                 if (rid) navigate(`/anime/${rid}`);
               }}
-              className="min-h-[36px] px-2.5 rounded-lg bg-[#141116] hover:bg-[#1C1720] border border-white/10 text-xs font-medium text-[#F5F1F2] inline-flex items-center gap-1.5 kage-press whitespace-nowrap shrink-0 cursor-pointer"
+              className="min-h-[38px] px-3 py-1.5 rounded-xl bg-[#141116] hover:bg-[#1C1720] border border-white/[0.09] text-xs font-medium text-[#F5F1F2] inline-flex items-center gap-1.5 kage-press whitespace-nowrap shrink-0 cursor-pointer transition-colors"
             >
               <Shuffle className="w-3.5 h-3.5 text-[#C0263D]" />
               <span>Surprise Me</span>
             </button>
             <Link
               to="/filters"
-              className="min-h-[36px] px-2.5 rounded-lg bg-[#141116] hover:bg-[#1C1720] border border-white/10 text-xs font-medium text-[#A7A0AA] hover:text-[#F5F1F2] inline-flex items-center gap-1.5 kage-press whitespace-nowrap shrink-0"
+              className="min-h-[38px] px-3 py-1.5 rounded-xl bg-[#141116] hover:bg-[#1C1720] border border-white/[0.09] text-xs font-medium text-[#A7A0AA] hover:text-[#F5F1F2] inline-flex items-center gap-1.5 kage-press whitespace-nowrap shrink-0 transition-colors"
             >
               <Filter className="w-3.5 h-3.5 text-[#6D28D9]" />
               <span>Anime Filters</span>
@@ -393,15 +393,19 @@ export const HomePage: React.FC<HomePageProps> = ({ onReplayIntro }) => {
       </div>
 
       {/* 5. Featured Guilds & Community Highlights */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2 border-t border-white/8">
-        <section className="space-y-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-4 border-t border-white/8">
+        <section className="space-y-3.5">
           <div className="flex items-center justify-between">
             <h3 className="text-base sm:text-lg font-bold text-[#F5F1F2] flex items-center gap-2">
               <Users className="w-4 h-4 text-[#6D28D9]" />
               <span>Featured Communities &amp; Guilds</span>
             </h3>
-            <Link to="/guilds" className="text-xs text-[#A7A0AA] hover:text-[#F5F1F2]">
-              Explore All
+            <Link
+              to="/guilds"
+              className="text-xs font-medium text-[#A7A0AA] hover:text-[#F5F1F2] inline-flex items-center gap-1 transition-colors whitespace-nowrap shrink-0"
+            >
+              <span>Explore All</span>
+              <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
           <div className="space-y-2.5">
@@ -409,9 +413,9 @@ export const HomePage: React.FC<HomePageProps> = ({ onReplayIntro }) => {
               <Link
                 key={g.id}
                 to={`/guilds/${g.slug}`}
-                className="p-3 rounded-xl bg-[#141116] border border-[#6D28D9]/25 hover:border-[#6D28D9]/60 flex items-center gap-3.5 transition-colors"
+                className="p-3.5 rounded-2xl bg-[#141116] border border-white/[0.08] hover:border-[#6D28D9]/55 hover:bg-[#18141C] flex items-center gap-3.5 transition-colors"
               >
-                <div className="w-14 h-14 rounded-full overflow-hidden border border-[#6D28D9]/60 shrink-0">
+                <div className="w-13 h-13 rounded-full overflow-hidden border border-[#6D28D9]/50 shrink-0">
                   <KageImage
                     src={g.artworkUrl}
                     alt={g.name}
@@ -419,14 +423,14 @@ export const HomePage: React.FC<HomePageProps> = ({ onReplayIntro }) => {
                   />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs sm:text-sm font-bold text-[#F5F1F2] truncate">
+                  <p className="text-sm font-semibold text-[#F5F1F2] truncate">
                     {g.name}
                   </p>
                   <p className="text-xs text-[#A7A0AA] line-clamp-1 mt-0.5">
                     {g.tagline || g.description}
                   </p>
-                  <p className="text-[11px] font-mono-num text-[#A7A0AA] mt-1">
-                    {formatCompactNumber(g.memberCount)} Members · {formatCompactNumber(g.discussionCount)} Posts
+                  <p className="text-[11px] font-mono-num text-[#A7A0AA]/90 mt-1">
+                    {formatCompactNumber(g.memberCount)} members · {formatCompactNumber(g.discussionCount)} posts
                   </p>
                 </div>
               </Link>
@@ -434,25 +438,29 @@ export const HomePage: React.FC<HomePageProps> = ({ onReplayIntro }) => {
           </div>
         </section>
 
-        <section className="space-y-3">
+        <section className="space-y-3.5">
           <div className="flex items-center justify-between">
             <h3 className="text-base sm:text-lg font-bold text-[#F5F1F2] flex items-center gap-2">
               <MessageSquare className="w-4 h-4 text-[#C0263D]" />
               <span>Community Highlights</span>
             </h3>
-            <Link to="/pulse" className="text-xs text-[#A7A0AA] hover:text-[#F5F1F2]">
-              Open Pulse
+            <Link
+              to="/pulse"
+              className="text-xs font-medium text-[#A7A0AA] hover:text-[#F5F1F2] inline-flex items-center gap-1 transition-colors whitespace-nowrap shrink-0"
+            >
+              <span>Open Pulse</span>
+              <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
 
           {communityHighlights.length === 0 ? (
-            <div className="p-6 rounded-xl bg-[#141116] border border-white/8 text-center space-y-2">
+            <div className="p-6 rounded-2xl bg-[#141116] border border-white/[0.08] text-center space-y-2.5">
               <p className="text-xs text-[#A7A0AA]">
-                No discussions posted yet. Spark the first fandom thread on Pulse!
+                No discussions posted yet. Spark the first fandom thread on Pulse.
               </p>
               <Link
                 to="/pulse"
-                className="inline-flex min-h-[40px] px-4 items-center rounded-lg bg-[#C0263D] text-white text-xs font-semibold"
+                className="inline-flex min-h-[40px] px-4 items-center rounded-xl bg-[#C0263D] hover:bg-[#d42b44] text-white text-xs font-semibold transition-colors"
               >
                 Create First Post
               </Link>
@@ -463,24 +471,24 @@ export const HomePage: React.FC<HomePageProps> = ({ onReplayIntro }) => {
                 <Link
                   key={post.id}
                   to={`/pulse?discussion=${post.id}`}
-                  className={`block p-3.5 rounded-xl bg-[#141116] border transition-colors ${
+                  className={`block p-3.5 rounded-2xl bg-[#141116] border transition-colors ${
                     post.author?.role === 'owner'
-                      ? 'border-amber-400/40 hover:border-amber-400/70'
-                      : 'border-white/8 hover:border-white/20'
+                      ? 'border-amber-400/35 hover:border-amber-400/65 hover:bg-[#18141C]'
+                      : 'border-white/[0.08] hover:border-white/20 hover:bg-[#18141C]'
                   }`}
                 >
                   <p className="text-sm font-semibold text-[#F5F1F2] line-clamp-1">
                     {post.title}
                   </p>
-                  <p className="text-xs text-[#A7A0AA] line-clamp-2 mt-1">{post.content}</p>
+                  <p className="text-xs text-[#A7A0AA] line-clamp-2 mt-1 leading-relaxed">{post.content}</p>
                   <div className="flex items-center gap-2 text-[11px] text-[#A7A0AA] mt-2 font-mono-num flex-wrap">
                     <span className="inline-flex items-center gap-1.5">
                       <span>@{post.author?.username}</span>
                       <OwnerBadge role={post.author?.role} size="xs" />
                     </span>
-                    <span>·</span>
+                    <span aria-hidden="true">·</span>
                     <span>{formatCompactNumber(post.likeCount)} likes</span>
-                    <span>·</span>
+                    <span aria-hidden="true">·</span>
                     <span>{formatCompactNumber(post.commentCount)} comments</span>
                   </div>
                 </Link>

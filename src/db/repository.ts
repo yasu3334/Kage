@@ -51,7 +51,7 @@ import {
   verifyPasswordScrypt,
 } from '../lib/serverToken.ts';
 import { validateAndComputeShadowIdentity } from '../lib/shadowIdentity.ts';
-import { isApprovedCatalogueImageUrl } from '../server/characterCatalogue.ts';
+import { CURATED_ANIME_CHARACTERS, isApprovedCatalogueImageUrl } from '../server/characterCatalogue.ts';
 import {
   hasBlockBetween,
   normalizeKageUsername,
@@ -3399,8 +3399,21 @@ export async function ensureOwnerAndSeedData() {
         .where(ilike(voiceRooms.title, '%DOMAIN%'));
     }
 
-    // Ensure flagship Clash uses exact Jin-Woo vs Gojo artwork
-    const existingClashes = await db.select().from(clashes).limit(2);
+    // Ensure flagship Clash uses exact Jin-Woo vs Gojo artwork AND repair any clashes corrupted by prior un-ordered limit(2) update
+    const findCharacterPortrait = (name: string): string | null => {
+      const clean = name.trim().toLowerCase();
+      if (!clean) return null;
+      const exact = CURATED_ANIME_CHARACTERS.find((c) => c.name.toLowerCase() === clean);
+      if (exact) return exact.imageUrl;
+      const partial = CURATED_ANIME_CHARACTERS.find(
+        (c) =>
+          clean.includes(c.name.toLowerCase()) ||
+          c.name.toLowerCase().includes(clean)
+      );
+      return partial ? partial.imageUrl : null;
+    };
+
+    const existingClashes = await db.select().from(clashes).orderBy(asc(clashes.id));
     if (existingClashes.length === 0) {
       await db.insert(clashes).values({
         title: 'Sung Jin-Woo vs Satoru Gojo',
@@ -3417,13 +3430,39 @@ export async function ensureOwnerAndSeedData() {
         rightVotes: 12,
       });
     } else {
-      await db
-        .update(clashes)
-        .set({
-          leftImageUrl: '/assets/extracted/clash-jinwoo.jpg',
-          rightImageUrl: '/assets/extracted/clash-gojo.jpg',
-        })
-        .where(eq(clashes.id, existingClashes[0].id));
+      for (const row of existingClashes) {
+        const lName = (row.leftName || '').toLowerCase();
+        const rName = (row.rightName || '').toLowerCase();
+        const patch: { leftImageUrl?: string; rightImageUrl?: string } = {};
+
+        if (lName.includes('jin-woo') || lName.includes('jinwoo')) {
+          if (row.leftImageUrl !== '/assets/extracted/clash-jinwoo.jpg') {
+            patch.leftImageUrl = '/assets/extracted/clash-jinwoo.jpg';
+          }
+        } else if (
+          row.leftImageUrl === '/assets/extracted/clash-jinwoo.jpg' ||
+          row.leftImageUrl === '/assets/extracted/clash-gojo.jpg'
+        ) {
+          const matchedLeft = findCharacterPortrait(row.leftName);
+          if (matchedLeft) patch.leftImageUrl = matchedLeft;
+        }
+
+        if (rName.includes('gojo')) {
+          if (row.rightImageUrl !== '/assets/extracted/clash-gojo.jpg') {
+            patch.rightImageUrl = '/assets/extracted/clash-gojo.jpg';
+          }
+        } else if (
+          row.rightImageUrl === '/assets/extracted/clash-jinwoo.jpg' ||
+          row.rightImageUrl === '/assets/extracted/clash-gojo.jpg'
+        ) {
+          const matchedRight = findCharacterPortrait(row.rightName);
+          if (matchedRight) patch.rightImageUrl = matchedRight;
+        }
+
+        if (patch.leftImageUrl || patch.rightImageUrl) {
+          await db.update(clashes).set(patch).where(eq(clashes.id, row.id));
+        }
+      }
     }
 
     // Ensure Owner has a pinned Sovereign Proclamation in PULSE

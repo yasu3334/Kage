@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  BookOpen,
   Check,
   Crown,
   ExternalLink,
@@ -204,8 +205,40 @@ export const AdminPanelPage: React.FC = () => {
   const [feedback, setFeedback] = useState('');
 
   const [activeTab, setActiveTab] = useState<
-    'announce' | 'ai_community' | 'users' | 'posts' | 'realms' | 'reports'
+    'announce' | 'ai_community' | 'users' | 'posts' | 'realms' | 'inkverse' | 'reports'
   >('announce');
+
+  // INKVERSE Creator Uploads Moderation Queue
+  const [inkverseFilter, setInkverseFilter] = useState<'all' | 'approved' | 'pending_review' | 'rejected'>('all');
+  const [inkverseQueue, setInkverseQueue] = useState<{
+    series: {
+      id: number;
+      title: string;
+      format: string;
+      coverImageUrl: string;
+      coverQuality: string;
+      inAppChapterCount?: number;
+      moderationStatus?: string;
+      moderationNote?: string | null;
+      uploader?: { username: string; displayName: string } | null;
+    }[];
+    chapters: {
+      id: number;
+      mangaId: number;
+      mangaTitle: string;
+      chapterNumber: string;
+      title: string;
+      language: string;
+      pageCount: number;
+      qualityTier: string;
+      moderationStatus: string;
+      moderationNote?: string | null;
+      publishedAt?: string | null;
+      uploader?: { username: string; displayName: string } | null;
+    }[];
+  } | null>(null);
+  const [loadingInkverse, setLoadingInkverse] = useState(false);
+  const [inkverseNotes, setInkverseNotes] = useState<Record<string, string>>({});
 
   // Announcement composer state
   const [annTitle, setAnnTitle] = useState('');
@@ -310,9 +343,78 @@ export const AdminPanelPage: React.FC = () => {
     return () => clearInterval(interval);
   }, [aiData?.isRunning, isAuthorized, loadAiCommunity]);
 
+  const loadInkverseModeration = useCallback(
+    async (statusFilter = inkverseFilter) => {
+      if (!isAuthorized) return;
+      setLoadingInkverse(true);
+      try {
+        const res = await apiFetch<any>(
+          `/api/admin/inkverse/moderation?status=${encodeURIComponent(statusFilter)}`
+        );
+        setInkverseQueue(res);
+      } catch {
+        // ignore
+      } finally {
+        setLoadingInkverse(false);
+      }
+    },
+    [isAuthorized, inkverseFilter]
+  );
+
+  useEffect(() => {
+    if (activeTab === 'inkverse') {
+      loadInkverseModeration(inkverseFilter);
+    }
+  }, [activeTab, inkverseFilter, loadInkverseModeration]);
+
   const showSuccess = (msg: string) => {
     setFeedback(msg);
     setTimeout(() => setFeedback((cur) => (cur === msg ? '' : cur)), 4500);
+  };
+
+  const handleModerateInkverse = async (
+    type: 'manga' | 'chapter',
+    id: number,
+    status: 'approved' | 'rejected' | 'pending_review'
+  ) => {
+    const noteKey = `${type}:${id}`;
+    setBusyKey(`ink:${noteKey}:${status}`);
+    setError('');
+    try {
+      await apiFetch('/api/admin/inkverse/moderation', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          type,
+          id,
+          status,
+          note: (inkverseNotes[noteKey] || '').trim() || undefined,
+        }),
+      });
+      showSuccess(`Updated ${type} #${id} status to ${status.replace(/_/g, ' ')}.`);
+      await loadInkverseModeration(inkverseFilter);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to update INKVERSE moderation status.');
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const handleDeleteInkverseItem = async (type: 'manga' | 'chapter', id: number) => {
+    setBusyKey(`inkdel:${type}:${id}`);
+    setError('');
+    try {
+      const endpoint =
+        type === 'manga'
+          ? `/api/inkverse/studio/manga/${id}`
+          : `/api/inkverse/studio/chapters/${id}`;
+      await apiFetch(endpoint, { method: 'DELETE' });
+      showSuccess(`Removed ${type} #${id} permanently from INKVERSE.`);
+      await loadInkverseModeration(inkverseFilter);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to delete INKVERSE item.');
+    } finally {
+      setBusyKey(null);
+    }
   };
 
   const handleSaveAiConfig = async (e: React.FormEvent) => {
@@ -757,6 +859,11 @@ export const AdminPanelPage: React.FC = () => {
               id: 'realms',
               label: 'Guilds, Voice & Clash',
               icon: Swords,
+            },
+            {
+              id: 'inkverse',
+              label: 'INKVERSE Moderation',
+              icon: BookOpen,
             },
             {
               id: 'reports',
@@ -1668,6 +1775,261 @@ export const AdminPanelPage: React.FC = () => {
                   ))}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* TAB 5B: INKVERSE CREATOR SERIES & CHAPTER MODERATION */}
+          {activeTab === 'inkverse' && (
+            <div className="space-y-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-[#141116] border border-white/10">
+                <div>
+                  <h2 className="text-sm sm:text-base font-bold text-[#F5F1F2] flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-[#C0263D]" />
+                    <span>INKVERSE Manga &amp; Chapter Safety Queue</span>
+                  </h2>
+                  <p className="text-xs text-[#A7A0AA] mt-0.5">
+                    Review creator-uploaded series and chapters, inspect pages in Reader, or remove
+                    unsafe/unauthorized uploads.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {(
+                    [
+                      { id: 'all', label: 'All Uploads' },
+                      { id: 'pending_review', label: 'Pending Review' },
+                      { id: 'approved', label: 'Approved' },
+                      { id: 'rejected', label: 'Rejected' },
+                    ] as const
+                  ).map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setInkverseFilter(f.id)}
+                      className={`min-h-[36px] px-3 rounded-lg text-xs font-semibold border cursor-pointer transition-colors ${
+                        inkverseFilter === f.id
+                          ? 'bg-[#C0263D] border-[#C0263D] text-white'
+                          : 'bg-[#09080B] border-white/12 text-[#A7A0AA] hover:text-white'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => loadInkverseModeration(inkverseFilter)}
+                    aria-label="Refresh INKVERSE queue"
+                    className="min-h-[36px] min-w-[36px] rounded-lg bg-[#09080B] border border-white/12 text-[#A7A0AA] hover:text-white flex items-center justify-center cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loadingInkverse ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+              </div>
+
+              {loadingInkverse && !inkverseQueue ? (
+                <div className="h-44 rounded-2xl bg-[#141116] animate-pulse" />
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                  {/* Creator Series Column */}
+                  <div className="p-5 rounded-2xl bg-[#141116] border border-white/10 space-y-3">
+                    <h3 className="text-sm font-bold text-[#F5F1F2] font-mono-num">
+                      Creator Series ({inkverseQueue?.series.length || 0})
+                    </h3>
+                    {!inkverseQueue || inkverseQueue.series.length === 0 ? (
+                      <p className="text-xs text-[#A7A0AA] py-6 text-center">
+                        No creator manga series in this filter.
+                      </p>
+                    ) : (
+                      <div className="space-y-3 max-h-[540px] overflow-y-auto pr-1">
+                        {inkverseQueue.series.map((s) => {
+                          const noteKey = `manga:${s.id}`;
+                          return (
+                            <div
+                              key={s.id}
+                              className="p-3.5 rounded-xl bg-[#09080B] border border-white/10 space-y-2.5"
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className="w-12 aspect-[2/3] rounded-lg overflow-hidden bg-[#141116] shrink-0">
+                                  <KageImage
+                                    strictArtwork
+                                    src={s.coverImageUrl}
+                                    alt={s.title}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                                <div className="min-w-0 flex-1 space-y-1">
+                                  <Link
+                                    to={`/inkverse/manga/${s.id}`}
+                                    className="text-xs sm:text-sm font-bold text-[#F5F1F2] hover:text-[#C0263D] truncate block"
+                                  >
+                                    {s.title}
+                                  </Link>
+                                  <p className="text-[11px] text-[#A7A0AA] font-mono-num">
+                                    {s.format} · {s.coverQuality} · {s.inAppChapterCount || 0} chapters
+                                    {s.uploader ? ` · @${s.uploader.username}` : ''}
+                                  </p>
+                                  <p className="text-[11px] text-[#D8D2DC]">
+                                    Status:{' '}
+                                    <span
+                                      className={
+                                        s.moderationStatus === 'rejected'
+                                          ? 'text-rose-400 font-semibold'
+                                          : s.moderationStatus === 'pending_review'
+                                            ? 'text-amber-300 font-semibold'
+                                            : 'text-emerald-400 font-semibold'
+                                      }
+                                    >
+                                      {(s.moderationStatus || 'approved').replace(/_/g, ' ')}
+                                    </span>
+                                  </p>
+                                </div>
+                              </div>
+
+                              <input
+                                type="text"
+                                value={inkverseNotes[noteKey] ?? s.moderationNote ?? ''}
+                                onChange={(e) =>
+                                  setInkverseNotes((prev) => ({
+                                    ...prev,
+                                    [noteKey]: e.target.value,
+                                  }))
+                                }
+                                placeholder="Moderation note (optional)..."
+                                className="w-full min-h-[34px] rounded-lg bg-[#141116] border border-white/10 px-2.5 text-[11px] text-[#F5F1F2]"
+                              />
+
+                              <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                  type="button"
+                                  disabled={busyKey === `ink:${noteKey}:approved`}
+                                  onClick={() => handleModerateInkverse('manga', s.id, 'approved')}
+                                  className="min-h-[34px] px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold cursor-pointer"
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={busyKey === `ink:${noteKey}:rejected`}
+                                  onClick={() => handleModerateInkverse('manga', s.id, 'rejected')}
+                                  className="min-h-[34px] px-3 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold cursor-pointer"
+                                >
+                                  Reject
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={busyKey === `inkdel:manga:${s.id}`}
+                                  onClick={() => handleDeleteInkverseItem('manga', s.id)}
+                                  className="min-h-[34px] px-3 rounded-lg bg-[#141116] border border-white/12 text-rose-400 hover:border-rose-500/50 text-xs font-semibold cursor-pointer ml-auto"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Creator Chapters Column */}
+                  <div className="p-5 rounded-2xl bg-[#141116] border border-white/10 space-y-3">
+                    <h3 className="text-sm font-bold text-[#F5F1F2] font-mono-num">
+                      Uploaded Chapters ({inkverseQueue?.chapters.length || 0})
+                    </h3>
+                    {!inkverseQueue || inkverseQueue.chapters.length === 0 ? (
+                      <p className="text-xs text-[#A7A0AA] py-6 text-center">
+                        No creator-uploaded chapters in this filter.
+                      </p>
+                    ) : (
+                      <div className="space-y-3 max-h-[540px] overflow-y-auto pr-1">
+                        {inkverseQueue.chapters.map((c) => {
+                          const noteKey = `chapter:${c.id}`;
+                          return (
+                            <div
+                              key={c.id}
+                              className="p-3.5 rounded-xl bg-[#09080B] border border-white/10 space-y-2.5"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0 space-y-1">
+                                  <p className="text-xs sm:text-sm font-bold text-[#F5F1F2] truncate">
+                                    {c.mangaTitle} — Ch. {c.chapterNumber}
+                                    {c.title ? ` (${c.title})` : ''}
+                                  </p>
+                                  <p className="text-[11px] text-[#A7A0AA] font-mono-num">
+                                    {c.pageCount} pages · {c.qualityTier} · {c.language.toUpperCase()}
+                                    {c.uploader ? ` · @${c.uploader.username}` : ''}
+                                  </p>
+                                  <p className="text-[11px] text-[#D8D2DC]">
+                                    Status:{' '}
+                                    <span
+                                      className={
+                                        c.moderationStatus === 'rejected'
+                                          ? 'text-rose-400 font-semibold'
+                                          : c.moderationStatus === 'pending_review'
+                                            ? 'text-amber-300 font-semibold'
+                                            : 'text-emerald-400 font-semibold'
+                                      }
+                                    >
+                                      {(c.moderationStatus || 'approved').replace(/_/g, ' ')}
+                                    </span>
+                                  </p>
+                                </div>
+                                <Link
+                                  to={`/inkverse/read/${c.mangaId}/${c.id}`}
+                                  className="min-h-[32px] px-2.5 rounded-lg bg-[#141116] border border-white/12 text-[11px] font-semibold text-[#F5F1F2] hover:border-[#C0263D] inline-flex items-center gap-1 shrink-0"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                  <span>Inspect</span>
+                                </Link>
+                              </div>
+
+                              <input
+                                type="text"
+                                value={inkverseNotes[noteKey] ?? c.moderationNote ?? ''}
+                                onChange={(e) =>
+                                  setInkverseNotes((prev) => ({
+                                    ...prev,
+                                    [noteKey]: e.target.value,
+                                  }))
+                                }
+                                placeholder="Moderation note (optional)..."
+                                className="w-full min-h-[34px] rounded-lg bg-[#141116] border border-white/10 px-2.5 text-[11px] text-[#F5F1F2]"
+                              />
+
+                              <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                  type="button"
+                                  disabled={busyKey === `ink:${noteKey}:approved`}
+                                  onClick={() => handleModerateInkverse('chapter', c.id, 'approved')}
+                                  className="min-h-[34px] px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold cursor-pointer"
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={busyKey === `ink:${noteKey}:rejected`}
+                                  onClick={() => handleModerateInkverse('chapter', c.id, 'rejected')}
+                                  className="min-h-[34px] px-3 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold cursor-pointer"
+                                >
+                                  Reject
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={busyKey === `inkdel:chapter:${c.id}`}
+                                  onClick={() => handleDeleteInkverseItem('chapter', c.id)}
+                                  className="min-h-[34px] px-3 rounded-lg bg-[#141116] border border-white/12 text-rose-400 hover:border-rose-500/50 text-xs font-semibold cursor-pointer ml-auto"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

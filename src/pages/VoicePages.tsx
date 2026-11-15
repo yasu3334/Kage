@@ -46,6 +46,7 @@ import { KageImage } from '../components/KageImage';
 import { OwnerBadge } from '../components/KageBrand';
 import { ReportModal } from '../components/ReportModal';
 import { KageModal } from '../components/KageModal';
+import { SpeakerLiveWaveform } from '../components/SpeakerLiveWaveform';
 import { kageSound } from '../lib/soundEngine';
 import { PRESET_BANNERS } from '../lib/assets';
 
@@ -282,7 +283,9 @@ const RemoteMediaTile: React.FC<{
           />
           <div className="absolute inset-x-0 bottom-0 p-2.5 bg-gradient-to-t from-black/85 via-black/40 to-transparent flex items-center justify-between gap-2">
             <span className="text-xs font-semibold text-white truncate flex items-center gap-1">
-              {participant.role === 'host' && <span aria-hidden="true">👑</span>}
+              {participant.role === 'host' && (
+                <Crown className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" aria-label="Host" />
+              )}
               {participant.displayName || participant.username}
             </span>
             {participant.isMuted ? (
@@ -814,6 +817,18 @@ export const VoiceRoomActivePage: React.FC = () => {
   const makingOfferRef = useRef<Map<string, boolean>>(new Map());
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
   const audioAnalyserCleanupRef = useRef<(() => void) | null>(null);
+  const waveformAudioCtxRef = useRef<AudioContext | null>(null);
+  const peerAnalysersRef = useRef<
+    Map<
+      string,
+      {
+        analyser: AnalyserNode;
+        source: MediaStreamAudioSourceNode;
+        stream: MediaStream;
+        dataArray: Uint8Array<ArrayBuffer>;
+      }
+    >
+  >(new Map());
   const joinedRef = useRef(false);
 
   const showToast = useCallback((msg: string) => {
@@ -892,11 +907,24 @@ export const VoiceRoomActivePage: React.FC = () => {
     sendWsMessage({ type: 'voice:join', roomId });
   }, [wsConnected, user, roomId, sendWsMessage]);
 
-  // Clean up local media & PeerConnections helper
+  // Clean up local media, peer connections & speaker waveform analysers
   const cleanupAllMedia = useCallback(() => {
     if (audioAnalyserCleanupRef.current) {
       audioAnalyserCleanupRef.current();
       audioAnalyserCleanupRef.current = null;
+    }
+    for (const [, entry] of peerAnalysersRef.current) {
+      try {
+        entry.source.disconnect();
+        entry.analyser.disconnect();
+      } catch {
+        // ignore audio graph disconnect errors
+      }
+    }
+    peerAnalysersRef.current.clear();
+    if (waveformAudioCtxRef.current) {
+      waveformAudioCtxRef.current.close().catch(() => {});
+      waveformAudioCtxRef.current = null;
     }
     if (localStreamRef.current) {
       for (const track of localStreamRef.current.getTracks()) {
@@ -1022,7 +1050,79 @@ export const VoiceRoomActivePage: React.FC = () => {
     }
   }, []);
 
-  // Attach Web Audio AnalyserNode to detect real speaking activity
+  // Register a local or remote MediaStream in the shared AudioContext Analyser registry for D3 waveforms
+  const registerStreamWaveformAnalyser = useCallback((uid: string, stream: MediaStream) => {
+    try {
+      if (!stream || stream.getAudioTracks().length === 0) return;
+      const existing = peerAnalysersRef.current.get(uid);
+      if (existing && existing.stream === stream) return;
+
+      if (existing) {
+        try {
+          existing.source.disconnect();
+          existing.analyser.disconnect();
+        } catch {
+          // ignore
+        }
+        peerAnalysersRef.current.delete(uid);
+      }
+
+      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!Ctx) return;
+      if (!waveformAudioCtxRef.current || waveformAudioCtxRef.current.state === 'closed') {
+        waveformAudioCtxRef.current = new Ctx();
+      }
+      const ctx = waveformAudioCtxRef.current;
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 128;
+      analyser.smoothingTimeConstant = 0.72;
+      source.connect(analyser);
+
+      const dataArray = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount));
+      peerAnalysersRef.current.set(uid, { analyser, source, stream, dataArray });
+    } catch {
+      // Ignore analyser attachment errors on restricted browsers
+    }
+  }, []);
+
+  // Live frequency-bin sampler consumed by each speaker's SpeakerLiveWaveform (D3)
+  const getSpeakerFrequencyData = useCallback((uid: string): Uint8Array | null => {
+    const entry = peerAnalysersRef.current.get(uid);
+    if (!entry) return null;
+    const track = entry.stream.getAudioTracks()[0];
+    if (!track || track.readyState !== 'live' || !track.enabled) return null;
+    if (waveformAudioCtxRef.current?.state === 'suspended') {
+      waveformAudioCtxRef.current.resume().catch(() => {});
+    }
+    entry.analyser.getByteFrequencyData(entry.dataArray);
+    return entry.dataArray;
+  }, []);
+
+  // Keep remote peer streams synchronized with the D3 waveform AudioContext analyser registry
+  useEffect(() => {
+    const activeUids = new Set(Object.keys(remoteStreams));
+    for (const [uid, stream] of Object.entries(remoteStreams)) {
+      registerStreamWaveformAnalyser(uid, stream);
+    }
+    for (const [uid, entry] of peerAnalysersRef.current) {
+      if (uid !== user?.uid && !activeUids.has(uid)) {
+        try {
+          entry.source.disconnect();
+          entry.analyser.disconnect();
+        } catch {
+          // ignore
+        }
+        peerAnalysersRef.current.delete(uid);
+      }
+    }
+  }, [registerStreamWaveformAnalyser, remoteStreams, user?.uid]);
+
+  // Attach Web Audio AnalyserNode to detect real speaking activity & feed local D3 waveform
   const startAudioSpeakingDetector = useCallback(
     (stream: MediaStream) => {
       if (audioAnalyserCleanupRef.current) {
@@ -1030,19 +1130,14 @@ export const VoiceRoomActivePage: React.FC = () => {
         audioAnalyserCleanupRef.current = null;
       }
       try {
-        const Ctx = window.AudioContext || (window as any).webkitAudioContext;
-        if (!Ctx || !user) return;
-        const ctx = new Ctx();
-        const source = ctx.createMediaStreamSource(stream);
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 256;
-        source.connect(analyser);
-        const data = new Uint8Array(analyser.frequencyBinCount);
+        if (!user) return;
+        registerStreamWaveformAnalyser(user.uid, stream);
         let lastSent = false;
 
         const interval = window.setInterval(() => {
           const audioTrack = stream.getAudioTracks()[0];
-          if (!audioTrack || !audioTrack.enabled) {
+          const data = getSpeakerFrequencyData(user.uid);
+          if (!audioTrack || !audioTrack.enabled || !data) {
             if (lastSent) {
               lastSent = false;
               setSpeakingMap((prev) => ({ ...prev, [user.uid]: false }));
@@ -1050,27 +1145,25 @@ export const VoiceRoomActivePage: React.FC = () => {
             }
             return;
           }
-          analyser.getByteFrequencyData(data);
           let sum = 0;
           for (let i = 0; i < data.length; i++) sum += data[i];
           const avg = sum / data.length;
-          const active = avg > 16;
+          const active = avg > 15;
           if (active !== lastSent) {
             lastSent = active;
             setSpeakingMap((prev) => ({ ...prev, [user.uid]: active }));
             sendWsMessage({ type: 'voice:speaking', roomId, speaking: active, isSpeaking: active });
           }
-        }, 240);
+        }, 180);
 
         audioAnalyserCleanupRef.current = () => {
           clearInterval(interval);
-          ctx.close().catch(() => {});
         };
       } catch {
         // Ignore audio analyser failures on restricted devices
       }
     },
-    [roomId, sendWsMessage, user]
+    [getSpeakerFrequencyData, registerStreamWaveformAnalyser, roomId, sendWsMessage, user]
   );
 
   // Subscribe to all real-time Voice/Video Room WebSocket events
@@ -1998,9 +2091,11 @@ export const VoiceRoomActivePage: React.FC = () => {
                         className="w-full h-full object-cover scale-x-[-1]"
                       />
                       <div className="absolute inset-x-0 bottom-0 p-2.5 bg-gradient-to-t from-black/85 to-transparent flex items-center justify-between text-xs text-white">
-                        <span className="font-semibold">
-                          {viewerParticipant.role === 'host' ? '👑 ' : ''}
-                          {viewerParticipant.displayName} (You)
+                        <span className="font-semibold inline-flex items-center gap-1.5">
+                          {viewerParticipant.role === 'host' && (
+                            <Crown className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" aria-label="Host" />
+                          )}
+                          <span>{viewerParticipant.displayName} (You)</span>
                         </span>
                         {viewerParticipant.isMuted ? (
                           <MicOff className="w-3.5 h-3.5 text-rose-400" />
@@ -2125,15 +2220,20 @@ export const VoiceRoomActivePage: React.FC = () => {
                           handleRequestSpeak(false);
                         }
                       }}
-                      className="group flex flex-col items-center text-center cursor-pointer focus:outline-none min-w-0"
+                      className="group flex flex-col items-center text-center cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6D28D9] min-w-0 rounded-2xl px-1.5 py-2.5 bg-[#141116]/25 border border-dashed border-white/10 hover:border-[#6D28D9]/55 hover:bg-[#141116]/55 transition-colors"
                     >
-                      <div className="w-15 h-15 sm:w-20 sm:h-20 rounded-full border border-dashed border-white/15 group-hover:border-[#6D28D9]/70 bg-[#141116]/45 flex items-center justify-center transition-colors">
+                      <div className="w-14 h-14 sm:w-18 sm:h-18 rounded-full border border-dashed border-white/15 group-hover:border-[#6D28D9]/70 bg-[#09080B]/60 flex items-center justify-center transition-colors">
                         <Plus className="w-4 h-4 text-[#A7A0AA]/60 group-hover:text-[#6D28D9]" />
                       </div>
-                      <span className="text-[11px] sm:text-xs font-medium text-[#A7A0AA]/70 mt-1.5 truncate max-w-full">
+                      <span className="text-[11px] sm:text-xs font-medium text-[#A7A0AA]/75 mt-1.5 truncate max-w-full">
                         Seat {seatNum}
                       </span>
-                      <span className="text-[10px] sm:text-[11px] text-[#A7A0AA]/45">Open</span>
+                      <span className="text-[10px] sm:text-[11px] text-[#A7A0AA]/45 leading-tight">
+                        Open
+                      </span>
+                      <div className="w-full max-w-[84px] h-6 mt-1 flex items-center justify-center" aria-hidden="true">
+                        <span className="w-10 h-px bg-white/8" />
+                      </div>
                     </button>
                   );
                 }
@@ -2145,13 +2245,17 @@ export const VoiceRoomActivePage: React.FC = () => {
                     key={speaker.uid}
                     type="button"
                     onClick={() => setSelectedParticipant(speaker)}
-                    className="flex flex-col items-center text-center group cursor-pointer focus:outline-none min-w-0"
+                    className={`flex flex-col items-center text-center group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6D28D9] min-w-0 rounded-2xl px-1.5 py-2.5 transition-colors border ${
+                      isSpeaking
+                        ? 'bg-emerald-500/[0.06] border-emerald-400/30'
+                        : 'bg-[#141116]/45 border-white/[0.05] hover:bg-[#141116]/80 hover:border-white/12'
+                    }`}
                   >
                     <div className="relative">
                       <div
-                        className={`w-15 h-15 sm:w-20 sm:h-20 rounded-full p-[2px] bg-gradient-to-tr from-[#6D28D9] via-[#9333EA] to-[#C0263D] transition-all ${
+                        className={`w-14 h-14 sm:w-18 sm:h-18 rounded-full p-[2px] bg-gradient-to-tr from-[#6D28D9] via-[#9333EA] to-[#C0263D] transition-all ${
                           isSpeaking
-                            ? 'ring-4 ring-emerald-400/55 shadow-[0_0_22px_rgba(52,211,153,0.55)] scale-[1.03]'
+                            ? 'ring-3 ring-emerald-400/55 shadow-[0_0_20px_rgba(52,211,153,0.45)] scale-[1.03]'
                             : ''
                         }`}
                       >
@@ -2169,7 +2273,9 @@ export const VoiceRoomActivePage: React.FC = () => {
                         className={`absolute -bottom-0.5 -right-0.5 w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 border-[#09080B] flex items-center justify-center ${
                           speaker.isMuted
                             ? 'bg-[#1C1720] text-[#A7A0AA]'
-                            : 'bg-[#09080B] text-emerald-400'
+                            : isSpeaking
+                              ? 'bg-emerald-500 text-[#09080B]'
+                              : 'bg-[#09080B] text-emerald-400'
                         }`}
                       >
                         {speaker.isMuted ? (
@@ -2186,11 +2292,9 @@ export const VoiceRoomActivePage: React.FC = () => {
                       )}
                     </div>
 
-                    <div className="mt-1.5 max-w-full flex items-center justify-center gap-0.5 px-0.5">
+                    <div className="mt-1.5 max-w-full flex items-center justify-center gap-1 px-0.5">
                       {isHost && (
-                        <span className="text-[10px] sm:text-[11px] shrink-0" aria-label="Host">
-                          👑
-                        </span>
+                        <Crown className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" aria-label="Host" />
                       )}
                       <span className="text-[11px] sm:text-xs font-semibold text-[#F5F1F2] truncate">
                         {speaker.username || speaker.displayName}
@@ -2199,6 +2303,16 @@ export const VoiceRoomActivePage: React.FC = () => {
                     <span className="text-[10px] sm:text-[11px] text-[#A7A0AA] leading-tight">
                       {formatRoleLabel(speaker.role)}
                     </span>
+
+                    {/* Live Real-Time D3 Voice Waveform */}
+                    <SpeakerLiveWaveform
+                      uid={speaker.uid}
+                      isSpeaking={isSpeaking}
+                      isMuted={speaker.isMuted}
+                      isHost={isHost}
+                      getFrequencyData={getSpeakerFrequencyData}
+                      className="mt-1"
+                    />
                   </button>
                 );
               })}
@@ -2677,7 +2791,9 @@ export const VoiceRoomActivePage: React.FC = () => {
                 />
                 <div className="min-w-0">
                   <p className="text-sm font-bold truncate flex items-center gap-1.5">
-                    {selectedParticipant.role === 'host' && <span>👑</span>}
+                    {selectedParticipant.role === 'host' && (
+                      <Crown className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" aria-label="Host" />
+                    )}
                     <span>{selectedParticipant.displayName}</span>
                     <OwnerBadge role={selectedParticipant.userRole} size="xs" />
                   </p>
@@ -2860,9 +2976,11 @@ export const VoiceRoomActivePage: React.FC = () => {
                       className="w-9 h-9 rounded-full object-cover shrink-0"
                     />
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-[#F5F1F2] truncate">
-                        {p.role === 'host' ? '👑 ' : ''}
-                        {p.displayName}
+                      <p className="text-xs font-semibold text-[#F5F1F2] truncate inline-flex items-center gap-1">
+                        {p.role === 'host' && (
+                          <Crown className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" aria-label="Host" />
+                        )}
+                        <span>{p.displayName}</span>
                       </p>
                       <p className="text-[11px] text-[#A7A0AA] truncate">@{p.username}</p>
                     </div>

@@ -13,6 +13,7 @@ import {
 import { HttpError, hasBlockBetween } from '../db/profileSystemRepo.ts';
 import {
   validateAvatarUploadPayload,
+  validateMangaArtworkPayload,
   validatePostImagePayload,
   validatePostVideoPayload,
   validateSplashVideoPayload,
@@ -153,7 +154,9 @@ export async function uploadValidatedMediaAsset(
       | 'guild_media'
       | 'clash_image'
       | 'clash_video'
-      | 'splash_intro_video';
+      | 'splash_intro_video'
+      | 'manga_cover'
+      | 'manga_page';
     visibility?: 'public' | 'private_conversation' | 'private_guild';
     conversationId?: number | null;
     communityId?: number | null;
@@ -167,6 +170,10 @@ export async function uploadValidatedMediaAsset(
   try {
     if (params.purpose === 'splash_intro_video') {
       validated = validateSplashVideoPayload(params.dataUrl);
+    } else if (params.purpose === 'manga_cover') {
+      validated = await validateMangaArtworkPayload(params.dataUrl, 'cover');
+    } else if (params.purpose === 'manga_page') {
+      validated = await validateMangaArtworkPayload(params.dataUrl, 'page');
     } else if (params.mediaType === 'avatar') {
       validated = await validateAvatarUploadPayload(params.dataUrl);
     } else if (params.mediaType === 'video') {

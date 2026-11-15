@@ -32,6 +32,7 @@ import {
   Smile,
   Sparkles,
   Trash2,
+  Trophy,
   Upload,
   UserCheck,
   UserPlus,
@@ -50,6 +51,7 @@ import { kageSound } from '../lib/soundEngine';
 import { PRESET_BANNERS } from '../lib/assets';
 import { ALL_GENRE_NAMES } from '../lib/genres';
 import { formatCompactNumber } from '../lib/formatters';
+import { GlobalLeaderboard } from '../components/GlobalLeaderboard';
 
 interface GuildItem {
   id: number;
@@ -282,6 +284,7 @@ export const GuildsPage: React.FC = () => {
   const [forging, setForging] = useState(false);
   const [forgeError, setForgeError] = useState('');
   const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [guildsView, setGuildsView] = useState<'directory' | 'standings'>('directory');
 
   const loadData = useCallback(
     async (resetOffset = true) => {
@@ -515,6 +518,21 @@ export const GuildsPage: React.FC = () => {
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
+              onClick={() =>
+                setGuildsView((prev) => (prev === 'directory' ? 'standings' : 'directory'))
+              }
+              className={`min-h-[42px] px-3.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
+                guildsView === 'standings'
+                  ? 'bg-[#6D28D9]/25 border-[#6D28D9] text-[#F5F1F2]'
+                  : 'bg-[#141116] border-white/12 text-[#D8D2DC] hover:text-white hover:border-[#6D28D9]/50'
+              }`}
+            >
+              <Trophy className="w-4 h-4 text-amber-400" />
+              <span>{guildsView === 'standings' ? 'Guilds List' : 'Standings'}</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setFiltersExpanded((v) => !v)}
               aria-label="Search and filter guilds"
               className={`min-h-[42px] min-w-[42px] px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
@@ -537,6 +555,10 @@ export const GuildsPage: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {guildsView === 'standings' && (
+          <GlobalLeaderboard defaultTab="communities" showHeader={false} />
+        )}
 
         {/* Direct Guild Invitations Banner */}
         {myInvites.length > 0 && (
@@ -686,7 +708,7 @@ export const GuildsPage: React.FC = () => {
         )}
 
         {/* Guild Cards List — Matching KAGE Horizontal Guild Card Layout */}
-        {loading ? (
+        {guildsView === 'directory' && (loading ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
             {Array.from({ length: 4 }).map((_, idx) => (
               <div key={idx} className="h-28 rounded-2xl bg-[#141116] animate-pulse" />
@@ -801,7 +823,7 @@ export const GuildsPage: React.FC = () => {
               </div>
             )}
           </div>
-        )}
+        ))}
       </section>
 
       {/* KAGE LIVE Standalone Voice & Video Rooms Section */}

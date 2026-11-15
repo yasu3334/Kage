@@ -6,7 +6,16 @@ import { KageModal } from './KageModal';
 interface ReportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  targetType: 'discussion' | 'comment' | 'community' | 'user' | 'voice_room' | 'clash' | 'message';
+  targetType:
+    | 'discussion'
+    | 'comment'
+    | 'community'
+    | 'user'
+    | 'voice_room'
+    | 'clash'
+    | 'message'
+    | 'manga'
+    | 'manga_chapter';
   targetId: string | number;
   targetLabel?: string;
 }

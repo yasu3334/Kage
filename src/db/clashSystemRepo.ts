@@ -1553,42 +1553,86 @@ async function hydrateClashRows(
 ) {
   if (rows.length === 0) return [];
   const clashIds = rows.map((r) => r.id);
+  const creatorUids = Array.from(
+    new Set(rows.map((r) => r.creatorUid || r.challengerUid).filter(Boolean) as string[])
+  );
+  const communityIds = Array.from(
+    new Set(
+      rows
+        .flatMap((r) => [r.challengerCommunityId, r.opponentCommunityId])
+        .filter((id): id is number => typeof id === 'number' && id > 0)
+    )
+  );
 
-  const [entriesRows, rewardsRows, rewardVoteRows, viewerVotesRows, viewerRepMemberships] =
-    await Promise.all([
-      db
-        .select({
-          entry: clashEntries,
-          submitterUsername: users.username,
-          submitterDisplayName: profiles.displayName,
-        })
-        .from(clashEntries)
-        .innerJoin(users, eq(clashEntries.submittedByUid, users.uid))
-        .innerJoin(profiles, eq(users.uid, profiles.userUid))
-        .where(inArray(clashEntries.clashId, clashIds)),
-      db.select().from(clashRewards).where(inArray(clashRewards.clashId, clashIds)),
-      db.select().from(clashRewardVotes).where(inArray(clashRewardVotes.clashId, clashIds)),
-      viewerUid
-        ? db
-            .select()
-            .from(clashVotes)
-            .where(and(eq(clashVotes.userUid, viewerUid), inArray(clashVotes.clashId, clashIds)))
-        : Promise.resolve([]),
-      viewerUid
-        ? db
-            .select({
-              communityId: communityMemberships.communityId,
-              role: communityMemberships.role,
-            })
-            .from(communityMemberships)
-            .where(eq(communityMemberships.userUid, viewerUid))
-        : Promise.resolve([]),
-    ]);
+  const [
+    entriesRows,
+    rewardsRows,
+    rewardVoteRows,
+    viewerVotesRows,
+    viewerRepMemberships,
+    creatorRows,
+    guildRows,
+  ] = await Promise.all([
+    db
+      .select({
+        entry: clashEntries,
+        submitterUsername: users.username,
+        submitterDisplayName: profiles.displayName,
+      })
+      .from(clashEntries)
+      .innerJoin(users, eq(clashEntries.submittedByUid, users.uid))
+      .innerJoin(profiles, eq(users.uid, profiles.userUid))
+      .where(inArray(clashEntries.clashId, clashIds)),
+    db.select().from(clashRewards).where(inArray(clashRewards.clashId, clashIds)),
+    db.select().from(clashRewardVotes).where(inArray(clashRewardVotes.clashId, clashIds)),
+    viewerUid
+      ? db
+          .select()
+          .from(clashVotes)
+          .where(and(eq(clashVotes.userUid, viewerUid), inArray(clashVotes.clashId, clashIds)))
+      : Promise.resolve([]),
+    viewerUid
+      ? db
+          .select({
+            communityId: communityMemberships.communityId,
+            role: communityMemberships.role,
+          })
+          .from(communityMemberships)
+          .where(eq(communityMemberships.userUid, viewerUid))
+      : Promise.resolve([]),
+    creatorUids.length > 0
+      ? db
+          .select({
+            uid: users.uid,
+            username: users.username,
+            role: users.role,
+            displayName: profiles.displayName,
+            avatarUrl: profiles.avatarUrl,
+          })
+          .from(users)
+          .innerJoin(profiles, eq(users.uid, profiles.userUid))
+          .where(inArray(users.uid, creatorUids))
+      : Promise.resolve([]),
+    communityIds.length > 0
+      ? db
+          .select({
+            id: communities.id,
+            name: communities.name,
+            slug: communities.slug,
+            artworkUrl: communities.artworkUrl,
+            memberCount: communities.memberCount,
+          })
+          .from(communities)
+          .where(inArray(communities.id, communityIds))
+      : Promise.resolve([]),
+  ]);
 
   const voteMap = new Map<number, string>(viewerVotesRows.map((v) => [v.clashId, v.side]));
   const repGuildIds = new Set<number>(
     viewerRepMemberships.filter((m) => REP_ROLES.has(m.role)).map((m) => m.communityId)
   );
+  const creatorMap = new Map(creatorRows.map((cr) => [cr.uid, cr]));
+  const guildMap = new Map(guildRows.map((g) => [g.id, g]));
 
   return rows.map((c) => {
     const cEntries = entriesRows
@@ -1650,6 +1694,14 @@ async function hydrateClashRows(
     const leftPercent = totalVotes > 0 ? Math.round(((c.leftVotes || 0) / totalVotes) * 100) : 50;
     const rightPercent = totalVotes > 0 ? 100 - leftPercent : 50;
 
+    const creator = creatorMap.get(c.creatorUid || c.challengerUid || '') || null;
+    const challengerGuild = c.challengerCommunityId
+      ? guildMap.get(c.challengerCommunityId) || null
+      : null;
+    const opponentGuild = c.opponentCommunityId
+      ? guildMap.get(c.opponentCommunityId) || null
+      : null;
+
     return {
       ...c,
       totalVotes,
@@ -1663,6 +1715,9 @@ async function hydrateClashRows(
       canAcceptInvite,
       canSubmitLeftEntry,
       canSubmitRightEntry,
+      creator,
+      challengerGuild,
+      opponentGuild,
       isFanOpinionPowerVote: c.clashMode === 'solo_character',
       fanVoteDisclaimer:
         c.clashMode === 'solo_character'
@@ -1775,3 +1830,547 @@ export async function listClashesPaginated(params: {
     hasMore: offset + rows.length < total,
   };
 }
+
+export interface LeaderboardHunterRow {
+  rank: number;
+  uid: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string;
+  kageId: string | null;
+  role: string;
+  equippedTitle: string;
+  accountLevel: number;
+  accountXp: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  matchesPlayed: number;
+  completedMatches: number;
+  winRate: number;
+  votesEarned: number;
+  entriesSubmitted: number;
+  clashesCreated: number;
+  votesCast: number;
+  rewardsCaptured: number;
+  powerScore: number;
+  isAiDemo: boolean;
+}
+
+export interface LeaderboardCommunityRow {
+  rank: number;
+  id: number;
+  slug: string;
+  name: string;
+  category: string;
+  artworkUrl: string;
+  isVerified: boolean;
+  privacyMode: string;
+  communityLevel: number;
+  communityXp: number;
+  memberCount: number;
+  discussionCount: number;
+  guildWarWins: number;
+  guildWarLosses: number;
+  guildWarDraws: number;
+  guildWarsPlayed: number;
+  completedGuildWars: number;
+  liveGuildWars: number;
+  winRate: number;
+  warVotesEarned: number;
+  rewardsCaptured: number;
+  powerScore: number;
+}
+
+export async function getGlobalClashAndCommunityLeaderboard(params?: {
+  limit?: number;
+  viewerUid?: string;
+}) {
+  await sweepClashLifecycles();
+
+  const limit = Math.max(5, Math.min(50, params?.limit || 25));
+
+  const validStatuses = [
+    'live',
+    'completed',
+    'awaiting_entries',
+    'scheduled',
+    'pending_acceptance',
+  ];
+
+  const [clashRows, entryRows, voteAggRows, awardedRewardRows, communityRows] = await Promise.all([
+    db
+      .select({
+        id: clashes.id,
+        clashMode: clashes.clashMode,
+        status: clashes.status,
+        winnerSide: clashes.winnerSide,
+        creatorUid: clashes.creatorUid,
+        challengerUid: clashes.challengerUid,
+        opponentUid: clashes.opponentUid,
+        acceptedByUid: clashes.acceptedByUid,
+        challengerCommunityId: clashes.challengerCommunityId,
+        opponentCommunityId: clashes.opponentCommunityId,
+        leftVotes: clashes.leftVotes,
+        rightVotes: clashes.rightVotes,
+      })
+      .from(clashes)
+      .where(inArray(clashes.status, validStatuses)),
+    db
+      .select({
+        clashId: clashEntries.clashId,
+        side: clashEntries.side,
+        submittedByUid: clashEntries.submittedByUid,
+        communityId: clashEntries.communityId,
+      })
+      .from(clashEntries),
+    db
+      .select({
+        userUid: clashVotes.userUid,
+        votesCast: sql<number>`count(*)::int`,
+      })
+      .from(clashVotes)
+      .groupBy(clashVotes.userUid),
+    db
+      .select({
+        awardedToUid: clashRewards.awardedToUid,
+        awardedToCommunityId: clashRewards.awardedToCommunityId,
+      })
+      .from(clashRewards)
+      .where(eq(clashRewards.status, 'awarded')),
+    db
+      .select({
+        id: communities.id,
+        slug: communities.slug,
+        name: communities.name,
+        category: communities.category,
+        artworkUrl: communities.artworkUrl,
+        isVerified: communities.isVerified,
+        privacyMode: communities.privacyMode,
+        communityLevel: communities.communityLevel,
+        communityXp: communities.communityXp,
+        memberCount: communities.memberCount,
+        discussionCount: communities.discussionCount,
+      })
+      .from(communities)
+      .where(eq(communities.isArchived, false)),
+  ]);
+
+  // Index clash entries by clashId -> side -> submitter
+  const entriesByClash = new Map<number, { leftUid?: string; rightUid?: string }>();
+  const entriesCountByUser = new Map<string, number>();
+
+  for (const e of entryRows) {
+    entriesCountByUser.set(e.submittedByUid, (entriesCountByUser.get(e.submittedByUid) || 0) + 1);
+    const cur = entriesByClash.get(e.clashId) || {};
+    if (e.side === 'left' && !cur.leftUid) cur.leftUid = e.submittedByUid;
+    if (e.side === 'right' && !cur.rightUid) cur.rightUid = e.submittedByUid;
+    entriesByClash.set(e.clashId, cur);
+  }
+
+  const votesCastByUser = new Map<string, number>();
+  for (const v of voteAggRows) {
+    votesCastByUser.set(v.userUid, v.votesCast || 0);
+  }
+
+  const userRewardsCaptured = new Map<string, number>();
+  const communityRewardsCaptured = new Map<number, number>();
+  for (const rw of awardedRewardRows) {
+    if (rw.awardedToUid) {
+      userRewardsCaptured.set(rw.awardedToUid, (userRewardsCaptured.get(rw.awardedToUid) || 0) + 1);
+    }
+    if (rw.awardedToCommunityId) {
+      communityRewardsCaptured.set(
+        rw.awardedToCommunityId,
+        (communityRewardsCaptured.get(rw.awardedToCommunityId) || 0) + 1
+      );
+    }
+  }
+
+  interface HunterAcc {
+    wins: number;
+    losses: number;
+    draws: number;
+    matchesPlayed: number;
+    completedMatches: number;
+    votesEarned: number;
+    entriesSubmitted: number;
+    clashesCreated: number;
+    votesCast: number;
+    rewardsCaptured: number;
+  }
+
+  const hunterStats = new Map<string, HunterAcc>();
+  const ensureHunter = (uid: string): HunterAcc => {
+    let cur = hunterStats.get(uid);
+    if (!cur) {
+      cur = {
+        wins: 0,
+        losses: 0,
+        draws: 0,
+        matchesPlayed: 0,
+        completedMatches: 0,
+        votesEarned: 0,
+        entriesSubmitted: entriesCountByUser.get(uid) || 0,
+        clashesCreated: 0,
+        votesCast: votesCastByUser.get(uid) || 0,
+        rewardsCaptured: userRewardsCaptured.get(uid) || 0,
+      };
+      hunterStats.set(uid, cur);
+    }
+    return cur;
+  };
+
+  interface CommunityAcc {
+    guildWarWins: number;
+    guildWarLosses: number;
+    guildWarDraws: number;
+    guildWarsPlayed: number;
+    completedGuildWars: number;
+    liveGuildWars: number;
+    warVotesEarned: number;
+    rewardsCaptured: number;
+  }
+
+  const guildStats = new Map<number, CommunityAcc>();
+  const ensureGuild = (id: number): CommunityAcc => {
+    let cur = guildStats.get(id);
+    if (!cur) {
+      cur = {
+        guildWarWins: 0,
+        guildWarLosses: 0,
+        guildWarDraws: 0,
+        guildWarsPlayed: 0,
+        completedGuildWars: 0,
+        liveGuildWars: 0,
+        warVotesEarned: 0,
+        rewardsCaptured: communityRewardsCaptured.get(id) || 0,
+      };
+      guildStats.set(id, cur);
+    }
+    return cur;
+  };
+
+  for (const g of communityRows) {
+    ensureGuild(g.id);
+  }
+
+  let liveClashes = 0;
+  let completedClashes = 0;
+  let totalVotesCast = 0;
+
+  for (const c of clashRows) {
+    const leftVotes = Number(c.leftVotes || 0);
+    const rightVotes = Number(c.rightVotes || 0);
+    totalVotesCast += leftVotes + rightVotes;
+    if (c.status === 'live') liveClashes += 1;
+    if (c.status === 'completed') completedClashes += 1;
+
+    const isActiveOrCompleted = c.status === 'live' || c.status === 'completed';
+    const isCompleted = c.status === 'completed';
+
+    if (c.creatorUid) {
+      const creatorAcc = ensureHunter(c.creatorUid);
+      creatorAcc.clashesCreated += 1;
+      if (c.clashMode === 'solo_character') {
+        creatorAcc.votesEarned += leftVotes + rightVotes;
+      }
+    }
+
+    if (c.clashMode === 'user_duel') {
+      const entryPair = entriesByClash.get(c.id);
+      const leftUid = c.challengerUid || entryPair?.leftUid || null;
+      const rightUid = c.acceptedByUid || c.opponentUid || entryPair?.rightUid || null;
+
+      if (leftUid) {
+        const acc = ensureHunter(leftUid);
+        acc.votesEarned += leftVotes;
+        if (isActiveOrCompleted) acc.matchesPlayed += 1;
+        if (isCompleted) {
+          acc.completedMatches += 1;
+          if (c.winnerSide === 'left') acc.wins += 1;
+          else if (c.winnerSide === 'right') acc.losses += 1;
+          else acc.draws += 1;
+        }
+      }
+      if (rightUid && rightUid !== leftUid) {
+        const acc = ensureHunter(rightUid);
+        acc.votesEarned += rightVotes;
+        if (isActiveOrCompleted) acc.matchesPlayed += 1;
+        if (isCompleted) {
+          acc.completedMatches += 1;
+          if (c.winnerSide === 'right') acc.wins += 1;
+          else if (c.winnerSide === 'left') acc.losses += 1;
+          else acc.draws += 1;
+        }
+      }
+    } else if (c.clashMode === 'community_duel') {
+      const entryPair = entriesByClash.get(c.id);
+      if (entryPair?.leftUid) {
+        const acc = ensureHunter(entryPair.leftUid);
+        acc.votesEarned += leftVotes;
+        if (isActiveOrCompleted) acc.matchesPlayed += 1;
+        if (isCompleted) {
+          acc.completedMatches += 1;
+          if (c.winnerSide === 'left') acc.wins += 1;
+          else if (c.winnerSide === 'right') acc.losses += 1;
+          else acc.draws += 1;
+        }
+      }
+      if (entryPair?.rightUid && entryPair.rightUid !== entryPair?.leftUid) {
+        const acc = ensureHunter(entryPair.rightUid);
+        acc.votesEarned += rightVotes;
+        if (isActiveOrCompleted) acc.matchesPlayed += 1;
+        if (isCompleted) {
+          acc.completedMatches += 1;
+          if (c.winnerSide === 'right') acc.wins += 1;
+          else if (c.winnerSide === 'left') acc.losses += 1;
+          else acc.draws += 1;
+        }
+      }
+
+      if (c.challengerCommunityId) {
+        const gAcc = ensureGuild(c.challengerCommunityId);
+        gAcc.warVotesEarned += leftVotes;
+        if (c.status === 'live') gAcc.liveGuildWars += 1;
+        if (isActiveOrCompleted) gAcc.guildWarsPlayed += 1;
+        if (isCompleted) {
+          gAcc.completedGuildWars += 1;
+          if (c.winnerSide === 'left') gAcc.guildWarWins += 1;
+          else if (c.winnerSide === 'right') gAcc.guildWarLosses += 1;
+          else gAcc.guildWarDraws += 1;
+        }
+      }
+      if (c.opponentCommunityId && c.opponentCommunityId !== c.challengerCommunityId) {
+        const gAcc = ensureGuild(c.opponentCommunityId);
+        gAcc.warVotesEarned += rightVotes;
+        if (c.status === 'live') gAcc.liveGuildWars += 1;
+        if (isActiveOrCompleted) gAcc.guildWarsPlayed += 1;
+        if (isCompleted) {
+          gAcc.completedGuildWars += 1;
+          if (c.winnerSide === 'right') gAcc.guildWarWins += 1;
+          else if (c.winnerSide === 'left') gAcc.guildWarLosses += 1;
+          else gAcc.guildWarDraws += 1;
+        }
+      }
+    }
+  }
+
+  for (const uid of entriesCountByUser.keys()) ensureHunter(uid);
+  for (const uid of votesCastByUser.keys()) ensureHunter(uid);
+  for (const uid of userRewardsCaptured.keys()) ensureHunter(uid);
+
+  const participantUids = Array.from(hunterStats.keys());
+  if (params?.viewerUid && !hunterStats.has(params.viewerUid)) {
+    participantUids.push(params.viewerUid);
+  }
+
+  const userRows =
+    participantUids.length > 0
+      ? await db
+          .select({
+            uid: users.uid,
+            username: users.username,
+            kageId: users.kageId,
+            role: users.role,
+            accountLevel: users.accountLevel,
+            accountXp: users.accountXp,
+            isAiDemo: users.isAiDemo,
+            displayName: profiles.displayName,
+            avatarUrl: profiles.avatarUrl,
+            equippedTitle: profiles.equippedTitle,
+          })
+          .from(users)
+          .innerJoin(profiles, eq(users.uid, profiles.userUid))
+          .where(inArray(users.uid, participantUids))
+      : [];
+
+  const scoredHunters = userRows
+    .map((u) => {
+      const acc = hunterStats.get(u.uid) || {
+        wins: 0,
+        losses: 0,
+        draws: 0,
+        matchesPlayed: 0,
+        completedMatches: 0,
+        votesEarned: 0,
+        entriesSubmitted: 0,
+        clashesCreated: 0,
+        votesCast: 0,
+        rewardsCaptured: 0,
+      };
+      const winRate =
+        acc.completedMatches > 0 ? Math.round((acc.wins / acc.completedMatches) * 100) : 0;
+      const hasClashActivity =
+        acc.matchesPlayed > 0 ||
+        acc.entriesSubmitted > 0 ||
+        acc.clashesCreated > 0 ||
+        acc.votesCast > 0 ||
+        acc.rewardsCaptured > 0;
+      const powerScore = hasClashActivity
+        ? acc.wins * 300 +
+          acc.draws * 100 +
+          acc.votesEarned * 12 +
+          acc.entriesSubmitted * 80 +
+          acc.clashesCreated * 40 +
+          acc.votesCast * 5 +
+          acc.rewardsCaptured * 150 +
+          Math.round((u.accountXp || 0) * 0.1)
+        : 0;
+
+      return {
+        ...u,
+        ...acc,
+        winRate,
+        powerScore,
+        hasClashActivity,
+      };
+    })
+    .filter((h) => h.hasClashActivity || h.uid === params?.viewerUid)
+    .sort((a, b) => {
+      if (b.powerScore !== a.powerScore) return b.powerScore - a.powerScore;
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      if (b.votesEarned !== a.votesEarned) return b.votesEarned - a.votesEarned;
+      return b.accountXp - a.accountXp;
+    });
+
+  const rankedHunters: LeaderboardHunterRow[] = [];
+  let viewerHunterRank: LeaderboardHunterRow | null = null;
+  let activeCounter = 0;
+
+  for (const h of scoredHunters) {
+    if (h.hasClashActivity) {
+      activeCounter += 1;
+      const row: LeaderboardHunterRow = {
+        rank: activeCounter,
+        uid: h.uid,
+        username: h.username,
+        displayName: h.displayName,
+        avatarUrl: h.avatarUrl,
+        kageId: h.kageId,
+        role: h.role,
+        equippedTitle: h.equippedTitle,
+        accountLevel: h.accountLevel,
+        accountXp: h.accountXp,
+        wins: h.wins,
+        losses: h.losses,
+        draws: h.draws,
+        matchesPlayed: h.matchesPlayed,
+        completedMatches: h.completedMatches,
+        winRate: h.winRate,
+        votesEarned: h.votesEarned,
+        entriesSubmitted: h.entriesSubmitted,
+        clashesCreated: h.clashesCreated,
+        votesCast: h.votesCast,
+        rewardsCaptured: h.rewardsCaptured,
+        powerScore: h.powerScore,
+        isAiDemo: h.isAiDemo,
+      };
+      if (rankedHunters.length < limit) {
+        rankedHunters.push(row);
+      }
+      if (params?.viewerUid && h.uid === params.viewerUid) {
+        viewerHunterRank = row;
+      }
+    } else if (params?.viewerUid && h.uid === params.viewerUid) {
+      viewerHunterRank = {
+        rank: 0,
+        uid: h.uid,
+        username: h.username,
+        displayName: h.displayName,
+        avatarUrl: h.avatarUrl,
+        kageId: h.kageId,
+        role: h.role,
+        equippedTitle: h.equippedTitle,
+        accountLevel: h.accountLevel,
+        accountXp: h.accountXp,
+        wins: 0,
+        losses: 0,
+        draws: 0,
+        matchesPlayed: 0,
+        completedMatches: 0,
+        winRate: 0,
+        votesEarned: 0,
+        entriesSubmitted: 0,
+        clashesCreated: 0,
+        votesCast: 0,
+        rewardsCaptured: 0,
+        powerScore: 0,
+        isAiDemo: h.isAiDemo,
+      };
+    }
+  }
+
+  const scoredCommunities = communityRows
+    .map((g) => {
+      const acc = ensureGuild(g.id);
+      const winRate =
+        acc.completedGuildWars > 0
+          ? Math.round((acc.guildWarWins / acc.completedGuildWars) * 100)
+          : 0;
+      const powerScore =
+        acc.guildWarWins * 400 +
+        acc.guildWarDraws * 120 +
+        acc.warVotesEarned * 15 +
+        acc.rewardsCaptured * 200 +
+        (g.communityXp || 0) +
+        (g.memberCount || 0) * 8 +
+        (g.discussionCount || 0) * 20;
+
+      return {
+        ...g,
+        ...acc,
+        winRate,
+        powerScore,
+      };
+    })
+    .sort((a, b) => {
+      if (b.powerScore !== a.powerScore) return b.powerScore - a.powerScore;
+      if (b.guildWarWins !== a.guildWarWins) return b.guildWarWins - a.guildWarWins;
+      if (b.communityXp !== a.communityXp) return b.communityXp - a.communityXp;
+      return b.memberCount - a.memberCount;
+    });
+
+  const rankedCommunities: LeaderboardCommunityRow[] = scoredCommunities
+    .slice(0, limit)
+    .map((g, idx) => ({
+      rank: idx + 1,
+      id: g.id,
+      slug: g.slug,
+      name: g.name,
+      category: g.category,
+      artworkUrl: g.artworkUrl,
+      isVerified: g.isVerified,
+      privacyMode: g.privacyMode,
+      communityLevel: g.communityLevel,
+      communityXp: g.communityXp,
+      memberCount: g.memberCount,
+      discussionCount: g.discussionCount,
+      guildWarWins: g.guildWarWins,
+      guildWarLosses: g.guildWarLosses,
+      guildWarDraws: g.guildWarDraws,
+      guildWarsPlayed: g.guildWarsPlayed,
+      completedGuildWars: g.completedGuildWars,
+      liveGuildWars: g.liveGuildWars,
+      winRate: g.winRate,
+      warVotesEarned: g.warVotesEarned,
+      rewardsCaptured: g.rewardsCaptured,
+      powerScore: g.powerScore,
+    }));
+
+  return {
+    summary: {
+      totalClashes: clashRows.length,
+      liveClashes,
+      completedClashes,
+      totalVotesCast,
+      activeCommunities: communityRows.length,
+      activeClashHunters: activeCounter,
+    },
+    hunters: rankedHunters,
+    communities: rankedCommunities,
+    viewerHunterRank,
+    generatedAt: new Date().toISOString(),
+  };
+}
+

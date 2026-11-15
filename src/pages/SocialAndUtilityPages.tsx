@@ -11,6 +11,7 @@ import {
   ArrowLeft,
   Bell,
   BellOff,
+  BookOpen,
   Check,
   CheckCheck,
   Crown,
@@ -48,6 +49,7 @@ import { auth } from '../lib/firebase';
 import { KageImage } from '../components/KageImage';
 import { OwnerBadge } from '../components/KageBrand';
 import { AnimePosterCard } from '../components/RealmsComponents';
+import { MangaPosterCard } from '../components/InkverseComponents';
 import { AnimeStickerPicker, KageStickerGraphic } from '../components/AnimeStickerPicker';
 import { ReportModal } from '../components/ReportModal';
 import { KageModal } from '../components/KageModal';
@@ -1556,13 +1558,14 @@ export const SearchPage: React.FC = () => {
         (searchParams.get('sort') && searchParams.get('sort') !== 'popularity')
     )
   );
-  const [tab, setTab] = useState<'all' | 'anime' | 'people' | 'guilds' | 'discussions' | 'voice'>(
+  const [tab, setTab] = useState<'all' | 'anime' | 'manga' | 'people' | 'guilds' | 'discussions' | 'voice'>(
     'all'
   );
   const [results, setResults] = useState<{
     queryKind: string;
     isExplicitPersonQuery: boolean;
     anime: any[];
+    manga: any[];
     people: any[];
     communities: any[];
     discussions: any[];
@@ -1571,11 +1574,13 @@ export const SearchPage: React.FC = () => {
     queryKind: 'empty',
     isExplicitPersonQuery: false,
     anime: [],
+    manga: [],
     people: [],
     communities: [],
     discussions: [],
     voiceRooms: [],
   });
+  const [mangaTotal, setMangaTotal] = useState<number>(0);
   const [animePageInfo, setAnimePageInfo] = useState<{
     currentPage: number;
     hasNextPage: boolean;
@@ -1637,11 +1642,19 @@ export const SearchPage: React.FC = () => {
             queryKind: res.queryKind || 'general',
             isExplicitPersonQuery: Boolean(res.isExplicitPersonQuery),
             anime: Array.isArray(res.anime) ? res.anime : [],
+            manga: Array.isArray(res.manga) ? res.manga : [],
             people: peopleList,
             communities: Array.isArray(res.communities) ? res.communities : [],
             discussions: Array.isArray(res.discussions) ? res.discussions : [],
             voiceRooms: Array.isArray(res.voiceRooms) ? res.voiceRooms : [],
           });
+          setMangaTotal(
+            typeof res.mangaPageInfo?.total === 'number'
+              ? res.mangaPageInfo.total
+              : Array.isArray(res.manga)
+                ? res.manga.length
+                : 0
+          );
           setAnimePageInfo(
             res.animePageInfo || {
               currentPage: 1,
@@ -1881,6 +1894,40 @@ export const SearchPage: React.FC = () => {
     </section>
   );
 
+  const renderMangaSection = (showHeading = true) => (
+    <section aria-label="Manga search results" className="space-y-4">
+      {showHeading && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-[#C0263D]" />
+            <h2 className="text-sm sm:text-base font-bold text-[#F5F1F2]">Manga · INKVERSE</h2>
+            <span className="text-xs text-[#A7A0AA] font-mono-num">
+              · {formatCompactNumber(mangaTotal)}
+            </span>
+          </div>
+          <Link
+            to={`/inkverse/browse${query.trim() ? `?q=${encodeURIComponent(query.trim())}` : ''}`}
+            className="text-xs font-semibold text-[#C0263D] hover:text-rose-400"
+          >
+            Browse in INKVERSE →
+          </Link>
+        </div>
+      )}
+
+      {results.manga.length === 0 ? (
+        <div className="py-8 px-4 rounded-2xl bg-[#141116] border border-white/8 text-center text-xs text-[#A7A0AA]">
+          No manga titles, authors, or characters matched your current query.
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5 sm:gap-4">
+          {results.manga.map((m: any) => (
+            <MangaPosterCard key={m.id} manga={m} showSubtitle />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+
   return (
     <div className="space-y-5">
       {/* Unified Search Box Header (Anime + People from the same input field) */}
@@ -2062,6 +2109,7 @@ export const SearchPage: React.FC = () => {
           [
             { id: 'all', label: 'All Results' },
             { id: 'anime', label: `Anime (${animeCountLabel})` },
+            { id: 'manga', label: `Manga (${formatCompactNumber(mangaTotal)})` },
             { id: 'people', label: `People (${results.people.length})` },
             { id: 'guilds', label: `Guilds (${results.communities.length})` },
             { id: 'discussions', label: `Posts (${results.discussions.length})` },
@@ -2121,10 +2169,12 @@ export const SearchPage: React.FC = () => {
                 <>
                   {renderPeopleSection(true)}
                   {renderAnimeSection(true)}
+                  {renderMangaSection(true)}
                 </>
               ) : (
                 <>
                   {renderAnimeSection(true)}
+                  {renderMangaSection(true)}
                   {renderPeopleSection(true)}
                 </>
               )}
@@ -2132,6 +2182,8 @@ export const SearchPage: React.FC = () => {
           )}
 
           {tab === 'anime' && renderAnimeSection(false)}
+
+          {tab === 'manga' && renderMangaSection(false)}
 
           {tab === 'people' && renderPeopleSection(false)}
 

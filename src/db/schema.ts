@@ -1852,6 +1852,326 @@ export const aiSeedingJobs = pgTable(
   (t) => [index('idx_ai_seeding_jobs_started').on(t.startedAt)]
 );
 
+// ============================================================================
+// KAGE — INKVERSE MANGA CATALOG, CHAPTERS, RELATIONS & USER LIBRARY TABLES
+// ============================================================================
+
+export const mangaCatalog = pgTable(
+  'manga_catalog',
+  {
+    id: serial('id').primaryKey(),
+    canonicalId: integer('canonical_id').notNull().unique(),
+    anilistId: integer('anilist_id'),
+    malId: integer('mal_id'),
+    mangadexId: text('mangadex_id'),
+    provider: text('provider').notNull().default('anilist'), // 'anilist' | 'mangadex' | 'jikan'
+    providerId: text('provider_id').notNull(),
+    slug: text('slug').notNull(),
+    titleEnglish: text('title_english'),
+    titleRomaji: text('title_romaji').notNull(),
+    titleNative: text('title_native'),
+    normalizedTitle: text('normalized_title').notNull(),
+    altTitles: jsonb('alt_titles').$type<string[]>().notNull().default([]),
+    synopsis: text('synopsis').notNull().default(''),
+    coverImageUrl: text('cover_image_url').notNull(),
+    coverQuality: text('cover_quality').notNull().default('Standard'), // '4K' | 'HD' | 'Standard' (never fabricated)
+    coverWidth: integer('cover_width'),
+    coverHeight: integer('cover_height'),
+    bannerImageUrl: text('banner_image_url'),
+    format: text('format').notNull().default('MANGA'), // 'MANGA' | 'MANHWA' | 'MANHUA' | 'ONE_SHOT' | 'NOVEL'
+    status: text('status').notNull().default('RELEASING'), // 'RELEASING' | 'FINISHED' | 'HIATUS' | 'CANCELLED' | 'NOT_YET_RELEASED'
+    releaseYear: integer('release_year'),
+    volumesCount: integer('volumes_count'),
+    chaptersCount: integer('chapters_count'),
+    averageScore: integer('average_score'), // 0..100 scale from verified provider (null when unknown)
+    scoreSource: text('score_source').notNull().default('AniList'),
+    popularity: integer('popularity').notNull().default(0),
+    trending: integer('trending').notNull().default(0),
+    readCount: integer('read_count').notNull().default(0), // Real KAGE internal reader opens
+    isColor: boolean('is_color').notNull().default(false),
+    originalLanguage: text('original_language').notNull().default('ja'), // 'ja' | 'ko' | 'zh' | 'en'
+    availableLanguages: jsonb('available_languages').$type<string[]>().notNull().default(['en']),
+    latestChapterNumber: text('latest_chapter_number'),
+    latestChapterAt: timestamp('latest_chapter_at'),
+    externalReaderUrl: text('external_reader_url'),
+    providerUrl: text('provider_url'),
+    charactersJson: jsonb('characters_json')
+      .$type<{ id?: number | null; name: string; role?: string; imageUrl?: string | null }[]>()
+      .notNull()
+      .default([]),
+    isAdult: boolean('is_adult').notNull().default(false),
+    uploadedByUid: text('uploaded_by_uid').references(() => users.uid, { onDelete: 'set null' }),
+    isOriginalUpload: boolean('is_original_upload').notNull().default(false),
+    moderationStatus: text('moderation_status').notNull().default('approved'), // 'approved' | 'pending_review' | 'rejected'
+    moderationNote: text('moderation_note'),
+    hasInAppChapters: boolean('has_in_app_chapters').notNull().default(false),
+    inAppChapterCount: integer('in_app_chapter_count').notNull().default(0),
+    lastSyncedAt: timestamp('last_synced_at').defaultNow().notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex('uniq_manga_catalog_provider').on(t.provider, t.providerId),
+    index('idx_manga_catalog_anilist').on(t.anilistId),
+    index('idx_manga_catalog_mal').on(t.malId),
+    index('idx_manga_catalog_mangadex').on(t.mangadexId),
+    index('idx_manga_catalog_norm_title').on(t.normalizedTitle),
+    index('idx_manga_catalog_status').on(t.status),
+    index('idx_manga_catalog_year').on(t.releaseYear),
+    index('idx_manga_catalog_popularity').on(t.popularity),
+    index('idx_manga_catalog_trending').on(t.trending),
+    index('idx_manga_catalog_score').on(t.averageScore),
+    index('idx_manga_catalog_read_count').on(t.readCount),
+    index('idx_manga_catalog_inapp_mod').on(t.moderationStatus, t.hasInAppChapters),
+    index('idx_manga_catalog_uploader').on(t.uploadedByUid),
+  ]
+);
+
+export const mangaAuthors = pgTable(
+  'manga_authors',
+  {
+    id: serial('id').primaryKey(),
+    name: text('name').notNull(),
+    normalizedName: text('normalized_name').notNull().unique(),
+    nativeName: text('native_name'),
+    imageUrl: text('image_url'),
+    providerId: text('provider_id'),
+  },
+  (t) => [index('idx_manga_authors_name').on(t.normalizedName)]
+);
+
+export const mangaCatalogAuthors = pgTable(
+  'manga_catalog_authors',
+  {
+    id: serial('id').primaryKey(),
+    mangaId: integer('manga_id')
+      .notNull()
+      .references(() => mangaCatalog.id, { onDelete: 'cascade' }),
+    authorId: integer('author_id')
+      .notNull()
+      .references(() => mangaAuthors.id, { onDelete: 'cascade' }),
+    role: text('role').notNull().default('Story & Art'), // 'Story' | 'Art' | 'Story & Art'
+  },
+  (t) => [
+    uniqueIndex('uniq_manga_catalog_author').on(t.mangaId, t.authorId, t.role),
+    index('idx_manga_cat_author_lookup').on(t.authorId, t.mangaId),
+  ]
+);
+
+export const mangaGenres = pgTable('manga_genres', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull().unique(),
+  slug: text('slug').notNull().unique(),
+});
+
+export const mangaCatalogGenres = pgTable(
+  'manga_catalog_genres',
+  {
+    id: serial('id').primaryKey(),
+    mangaId: integer('manga_id')
+      .notNull()
+      .references(() => mangaCatalog.id, { onDelete: 'cascade' }),
+    genreId: integer('genre_id')
+      .notNull()
+      .references(() => mangaGenres.id, { onDelete: 'cascade' }),
+  },
+  (t) => [
+    uniqueIndex('uniq_manga_catalog_genre').on(t.mangaId, t.genreId),
+    index('idx_manga_cat_genre_lookup').on(t.genreId, t.mangaId),
+  ]
+);
+
+export const mangaVolumes = pgTable(
+  'manga_volumes',
+  {
+    id: serial('id').primaryKey(),
+    mangaId: integer('manga_id')
+      .notNull()
+      .references(() => mangaCatalog.id, { onDelete: 'cascade' }),
+    volumeNumber: text('volume_number').notNull(),
+    title: text('title').notNull().default(''),
+    chapterCount: integer('chapter_count').notNull().default(0),
+    coverImageUrl: text('cover_image_url'),
+  },
+  (t) => [uniqueIndex('uniq_manga_volume').on(t.mangaId, t.volumeNumber)]
+);
+
+export const mangaChapters = pgTable(
+  'manga_chapters',
+  {
+    id: serial('id').primaryKey(),
+    mangaId: integer('manga_id')
+      .notNull()
+      .references(() => mangaCatalog.id, { onDelete: 'cascade' }),
+    externalChapterId: text('external_chapter_id').notNull().unique(),
+    provider: text('provider').notNull().default('mangadex'), // 'mangadex' | 'official_external'
+    volumeNumber: text('volume_number'),
+    chapterNumber: text('chapter_number').notNull(),
+    chapterSortKey: integer('chapter_sort_key').notNull().default(0), // Math.round(num * 100) for clean integer sorting
+    title: text('title').notNull().default(''),
+    language: text('language').notNull().default('en'),
+    pageCount: integer('page_count').notNull().default(0),
+    isAvailable: boolean('is_available').notNull().default(false),
+    isColor: boolean('is_color').notNull().default(false),
+    qualityTier: text('quality_tier').notNull().default('Unavailable'), // '4K' | 'HD' | 'Standard' | 'External' | 'Unavailable'
+    externalUrl: text('external_url'),
+    scanlationGroup: text('scanlation_group').notNull().default(''),
+    uploadedByUid: text('uploaded_by_uid').references(() => users.uid, { onDelete: 'set null' }),
+    moderationStatus: text('moderation_status').notNull().default('approved'), // 'approved' | 'pending_review' | 'rejected'
+    moderationNote: text('moderation_note'),
+    rightsDeclared: boolean('rights_declared').notNull().default(false),
+    publishedAt: timestamp('published_at'),
+    cachedAt: timestamp('cached_at').defaultNow().notNull(),
+  },
+  (t) => [
+    index('idx_manga_chapters_manga_sort').on(t.mangaId, t.language, t.chapterSortKey),
+    index('idx_manga_chapters_published').on(t.mangaId, t.publishedAt),
+    index('idx_manga_chapters_mod_avail').on(t.moderationStatus, t.isAvailable),
+  ]
+);
+
+export const mangaImages = pgTable(
+  'manga_images',
+  {
+    id: serial('id').primaryKey(),
+    chapterId: integer('chapter_id')
+      .notNull()
+      .references(() => mangaChapters.id, { onDelete: 'cascade' }),
+    pageNumber: integer('page_number').notNull(),
+    imageUrl: text('image_url').notNull(),
+    hdUrl: text('hd_url'),
+    width: integer('width'),
+    height: integer('height'),
+    qualityLabel: text('quality_label').notNull().default('Standard'), // '4K' | 'HD' | 'Standard'
+    isColor: boolean('is_color').notNull().default(false),
+  },
+  (t) => [uniqueIndex('uniq_manga_image_page').on(t.chapterId, t.pageNumber)]
+);
+
+export const animeMangaRelations = pgTable(
+  'anime_manga_relations',
+  {
+    id: serial('id').primaryKey(),
+    animeCanonicalId: integer('anime_canonical_id').notNull(),
+    animeMalId: integer('anime_mal_id'),
+    animeTitle: text('anime_title').notNull(),
+    mangaId: integer('manga_id')
+      .notNull()
+      .references(() => mangaCatalog.id, { onDelete: 'cascade' }),
+    relationType: text('relation_type').notNull().default('ORIGINAL_MANGA'), // 'ORIGINAL_MANGA' | 'ADAPTATION' | 'SPIN_OFF' | 'SEQUEL' | 'PREQUEL' | 'SIDE_STORY'
+    relationLabel: text('relation_label').notNull().default('Original Manga'),
+    continuationNote: text('continuation_note').notNull().default(''),
+    isVerified: boolean('is_verified').notNull().default(true),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex('uniq_anime_manga_relation').on(t.animeCanonicalId, t.mangaId, t.relationType),
+    index('idx_anime_manga_rel_anime_canon').on(t.animeCanonicalId),
+    index('idx_anime_manga_rel_anime_mal').on(t.animeMalId),
+    index('idx_anime_manga_rel_manga').on(t.mangaId),
+  ]
+);
+
+export const userMangaLibrary = pgTable(
+  'user_manga_library',
+  {
+    id: serial('id').primaryKey(),
+    userUid: text('user_uid')
+      .notNull()
+      .references(() => users.uid, { onDelete: 'cascade' }),
+    mangaId: integer('manga_id')
+      .notNull()
+      .references(() => mangaCatalog.id, { onDelete: 'cascade' }),
+    status: text('status').notNull().default('plan_to_read'), // 'reading' | 'completed' | 'plan_to_read' | 'on_hold' | 'dropped'
+    isBookmarked: boolean('is_bookmarked').notNull().default(false),
+    currentChapterId: integer('current_chapter_id'),
+    currentChapterNumber: text('current_chapter_number'),
+    currentPage: integer('current_page').notNull().default(1),
+    totalPages: integer('total_pages').notNull().default(1),
+    progressPercent: integer('progress_percent').notNull().default(0),
+    personalScore: integer('personal_score'),
+    addedAt: timestamp('added_at').defaultNow().notNull(),
+    lastReadAt: timestamp('last_read_at'),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex('uniq_user_manga_library').on(t.userUid, t.mangaId),
+    index('idx_user_manga_lib_user_status').on(t.userUid, t.status, t.updatedAt),
+    index('idx_user_manga_lib_bookmark').on(t.userUid, t.isBookmarked),
+  ]
+);
+
+export const mangaReadingHistory = pgTable(
+  'manga_reading_history',
+  {
+    id: serial('id').primaryKey(),
+    userUid: text('user_uid')
+      .notNull()
+      .references(() => users.uid, { onDelete: 'cascade' }),
+    mangaId: integer('manga_id')
+      .notNull()
+      .references(() => mangaCatalog.id, { onDelete: 'cascade' }),
+    chapterId: integer('chapter_id').references(() => mangaChapters.id, { onDelete: 'set null' }),
+    chapterNumber: text('chapter_number').notNull().default('1'),
+    chapterTitle: text('chapter_title').notNull().default(''),
+    pageNumber: integer('page_number').notNull().default(1),
+    totalPages: integer('total_pages').notNull().default(1),
+    progressPercent: integer('progress_percent').notNull().default(0),
+    readingMode: text('reading_mode').notNull().default('vertical'), // 'vertical' | 'page'
+    lastReadAt: timestamp('last_read_at').defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex('uniq_manga_reading_history').on(t.userUid, t.mangaId),
+    index('idx_manga_reading_hist_user_time').on(t.userUid, t.lastReadAt),
+  ]
+);
+
+export const mangaBookmarks = pgTable(
+  'manga_bookmarks',
+  {
+    id: serial('id').primaryKey(),
+    userUid: text('user_uid')
+      .notNull()
+      .references(() => users.uid, { onDelete: 'cascade' }),
+    mangaId: integer('manga_id')
+      .notNull()
+      .references(() => mangaCatalog.id, { onDelete: 'cascade' }),
+    chapterId: integer('chapter_id')
+      .notNull()
+      .references(() => mangaChapters.id, { onDelete: 'cascade' }),
+    chapterNumber: text('chapter_number').notNull().default('1'),
+    pageNumber: integer('page_number').notNull().default(1),
+    note: text('note').notNull().default(''),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex('uniq_manga_page_bookmark').on(t.userUid, t.chapterId, t.pageNumber),
+    index('idx_manga_bookmarks_user').on(t.userUid, t.createdAt),
+  ]
+);
+
+export const mangaReviews = pgTable(
+  'manga_reviews',
+  {
+    id: serial('id').primaryKey(),
+    authorUid: text('author_uid')
+      .notNull()
+      .references(() => users.uid, { onDelete: 'cascade' }),
+    mangaId: integer('manga_id')
+      .notNull()
+      .references(() => mangaCatalog.id, { onDelete: 'cascade' }),
+    rating: integer('rating'), // 1..10 optional
+    title: text('title').notNull(),
+    content: text('content').notNull(),
+    containsSpoilers: boolean('contains_spoilers').notNull().default(false),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (t) => [
+    index('idx_manga_reviews_author').on(t.authorUid, t.createdAt),
+    index('idx_manga_reviews_manga').on(t.mangaId, t.createdAt),
+  ]
+);
+
 export const usersRelations = relations(users, ({ one, many }) => ({
   profile: one(profiles, { fields: [users.uid], references: [profiles.userUid] }),
   aiDemoProfile: one(aiDemoProfiles, {
@@ -1870,4 +2190,8 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   characterMastery: many(userCharacterMastery),
   rewards: many(userRewards),
   activityHistory: many(userActivityHistory),
+  mangaLibrary: many(userMangaLibrary),
+  mangaHistory: many(mangaReadingHistory),
+  mangaBookmarks: many(mangaBookmarks),
+  mangaReviews: many(mangaReviews),
 }));

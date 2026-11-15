@@ -28,12 +28,14 @@ import {
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { KageImage } from '../components/KageImage';
+import { OwnerBadge } from '../components/KageBrand';
 import { ReportModal } from '../components/ReportModal';
 import { KageModal } from '../components/KageModal';
 import { kageSound } from '../lib/soundEngine';
 import { ALL_GENRE_NAMES } from '../lib/genres';
 import { formatCompactNumber } from '../lib/formatters';
 import { STATIC_CLASH_ITEMS } from '../lib/staticClashesFallback';
+import { GlobalLeaderboard } from '../components/GlobalLeaderboard';
 
 type ClashMode = 'user_duel' | 'community_duel' | 'solo_character';
 type ClashTab = 'all' | 'live' | 'upcoming' | 'community' | 'character' | 'completed' | 'mine';
@@ -103,6 +105,27 @@ interface ClashItem {
   challengerCommunityId?: number | null;
   opponentCommunityId?: number | null;
   creatorUid?: string | null;
+  creator?: {
+    uid: string;
+    username: string;
+    displayName: string;
+    avatarUrl: string;
+    role?: string;
+  } | null;
+  challengerGuild?: {
+    id: number;
+    name: string;
+    slug: string;
+    artworkUrl: string;
+    memberCount?: number;
+  } | null;
+  opponentGuild?: {
+    id: number;
+    name: string;
+    slug: string;
+    artworkUrl: string;
+    memberCount?: number;
+  } | null;
   allowVoteChange: boolean;
   hasRewards: boolean;
   winnerSide?: 'left' | 'right' | 'draw' | null;
@@ -271,6 +294,7 @@ export const ClashPage: React.FC = () => {
     null
   );
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [clashSectionView, setClashSectionView] = useState<'arena' | 'leaderboard'>('arena');
   const [votingId, setVotingId] = useState<number | null>(null);
   const [justVoted, setJustVoted] = useState<{ clashId: number; side: 'left' | 'right' } | null>(
     null
@@ -1024,6 +1048,40 @@ export const ClashPage: React.FC = () => {
     }
   };
 
+  const handleQuickMatchupIdea = async (idea: {
+    label: string;
+    title: string;
+    leftQuery: string;
+    rightQuery: string;
+  }) => {
+    if (!user) {
+      navigate('/auth/login');
+      return;
+    }
+    setCreateMode('solo_character');
+    setCategory(CLASH_CATEGORIES.solo_character[0]);
+    setTitle(idea.title);
+    setCreateError('');
+    setCreateOpen(true);
+
+    try {
+      const [leftRes, rightRes] = await Promise.all([
+        apiFetch<{ items: CatalogueCharacterOption[] }>(
+          `/api/characters?q=${encodeURIComponent(idea.leftQuery)}`
+        ),
+        apiFetch<{ items: CatalogueCharacterOption[] }>(
+          `/api/characters?q=${encodeURIComponent(idea.rightQuery)}`
+        ),
+      ]);
+      if (leftRes.items?.[0]) setSelectedLeftChar(leftRes.items[0]);
+      if (rightRes.items?.[0]) setSelectedRightChar(rightRes.items[0]);
+    } catch {
+      // keep queries fallback
+      setLeftCharQuery(idea.leftQuery);
+      setRightCharQuery(idea.rightQuery);
+    }
+  };
+
   const renderClashCard = (clash: ClashItem, isFocusedView = false) => {
     const totalVotes = (clash.leftVotes || 0) + (clash.rightVotes || 0);
     const leftPct = totalVotes === 0 ? 50 : Math.round(((clash.leftVotes || 0) / totalVotes) * 100);
@@ -1046,14 +1104,108 @@ export const ClashPage: React.FC = () => {
     return (
       <article
         key={clash.id}
-        className={`rounded-2xl bg-[#141116] border overflow-hidden p-4 sm:p-5 space-y-4 transition-colors ${
-          isFocusedView ? 'border-[#C0263D]/60' : 'border-white/12 hover:border-white/20'
+        className={`rounded-2xl bg-[#141116] border overflow-hidden p-4 sm:p-5 space-y-3.5 transition-all duration-200 shadow-[0_12px_40px_rgba(0,0,0,0.65)] hover:shadow-[0_16px_48px_rgba(0,0,0,0.85)] ${
+          isFocusedView ? 'border-[#C0263D]/60 ring-1 ring-[#C0263D]/30' : 'border-white/10 hover:border-white/20'
         }`}
       >
-        {/* Top Metadata Bar — Clean Unboxed Typography with Separators */}
+        {/* Guild / Creator Attribution Row */}
+        {clash.challengerGuild ? (
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2.5 pb-3 border-b border-white/10 text-xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Link
+                to={`/guilds/${clash.challengerGuild.slug}`}
+                className="w-8 h-8 rounded-xl overflow-hidden border border-[#C0263D]/60 bg-[#09080B] shrink-0"
+              >
+                <img
+                  src={clash.challengerGuild.artworkUrl}
+                  alt={clash.challengerGuild.name}
+                  className="w-full h-full object-cover"
+                />
+              </Link>
+              <div className="min-w-0">
+                <Link
+                  to={`/guilds/${clash.challengerGuild.slug}`}
+                  className="font-bold text-xs text-[#F5F1F2] hover:text-[#FB7185] truncate block tracking-wide uppercase"
+                >
+                  {clash.challengerGuild.name}
+                </Link>
+                <span className="text-[11px] text-[#A7A0AA] tabular-nums block truncate">
+                  {clash.challengerGuild.memberCount
+                    ? `${formatCompactNumber(clash.challengerGuild.memberCount)} hunters`
+                    : 'Challenger Guild'}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider uppercase text-amber-300 px-2 shrink-0">
+              <Swords className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>Guild War</span>
+            </div>
+
+            {clash.opponentGuild ? (
+              <div className="flex items-center justify-end gap-2.5 min-w-0">
+                <div className="min-w-0 text-right">
+                  <Link
+                    to={`/guilds/${clash.opponentGuild.slug}`}
+                    className="font-bold text-xs text-[#F5F1F2] hover:text-[#A78BFA] truncate block tracking-wide uppercase"
+                  >
+                    {clash.opponentGuild.name}
+                  </Link>
+                  <span className="text-[11px] text-[#A7A0AA] tabular-nums block truncate">
+                    {clash.opponentGuild.memberCount
+                      ? `${formatCompactNumber(clash.opponentGuild.memberCount)} hunters`
+                      : 'Rival Guild'}
+                  </span>
+                </div>
+                <Link
+                  to={`/guilds/${clash.opponentGuild.slug}`}
+                  className="w-8 h-8 rounded-xl overflow-hidden border border-[#6D28D9]/60 bg-[#09080B] shrink-0"
+                >
+                  <img
+                    src={clash.opponentGuild.artworkUrl}
+                    alt={clash.opponentGuild.name}
+                    className="w-full h-full object-cover"
+                  />
+                </Link>
+              </div>
+            ) : (
+              <div />
+            )}
+          </div>
+        ) : clash.creator ? (
+          <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-white/10 text-xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Link
+                to={`/profile/${clash.creator.username}`}
+                className="w-7 h-7 rounded-full overflow-hidden border border-white/15 bg-[#09080B] shrink-0"
+              >
+                <img
+                  src={clash.creator.avatarUrl}
+                  alt={clash.creator.displayName}
+                  className="w-full h-full object-cover"
+                />
+              </Link>
+              <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                <Link
+                  to={`/profile/${clash.creator.username}`}
+                  className="font-bold text-xs text-[#F5F1F2] hover:text-[#FB7185] truncate"
+                >
+                  {clash.creator.displayName}
+                </Link>
+                <OwnerBadge role={clash.creator.role} size="xs" />
+                <span className="text-[11px] text-[#A7A0AA] truncate">@{clash.creator.username}</span>
+              </div>
+            </div>
+            <span className="text-[11px] font-medium text-[#A7A0AA] shrink-0 whitespace-nowrap">
+              {clash.clashMode === 'user_duel' ? '1v1 Edit Duel' : 'Arena Match'}
+            </span>
+          </div>
+        ) : null}
+
+        {/* Top Metadata Bar & Title */}
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 space-y-1">
-            <div className="flex items-center flex-wrap gap-1.5 text-xs text-[#A7A0AA]">
+          <div className="min-w-0 flex-1 space-y-1">
+            <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-xs text-[#A7A0AA]">
               <span className="font-semibold text-[#F5F1F2]">{formatModeLabel(clash.clashMode)}</span>
               <span aria-hidden="true">·</span>
               <span>{clash.category}</span>
@@ -1061,10 +1213,10 @@ export const ClashPage: React.FC = () => {
               <span
                 className={
                   isLive
-                    ? 'text-[#C0263D] font-semibold'
+                    ? 'text-[#FB7185] font-semibold'
                     : isCompleted
-                      ? 'text-emerald-400 font-medium'
-                      : 'text-amber-300 font-medium'
+                      ? 'text-emerald-400 font-semibold'
+                      : 'text-amber-300 font-semibold'
                 }
               >
                 {formatStatusLabel(clash.status)}
@@ -1072,8 +1224,8 @@ export const ClashPage: React.FC = () => {
               {clash.endsAt && isLive && (
                 <>
                   <span aria-hidden="true">·</span>
-                  <span className="inline-flex items-center gap-1 font-mono-num">
-                    <Clock className="w-3 h-3" />
+                  <span className="inline-flex items-center gap-1 font-mono-num text-amber-200">
+                    <Clock className="w-3 h-3 text-amber-400" />
                     {formatTimeRemaining(clash.endsAt)}
                   </span>
                 </>
@@ -1081,14 +1233,14 @@ export const ClashPage: React.FC = () => {
             </div>
             <Link
               to={`/clash/${clash.id}`}
-              className="block text-sm sm:text-base font-bold text-[#F5F1F2] hover:text-[#C0263D] transition-colors line-clamp-1"
+              className="block font-display text-base sm:text-lg font-bold tracking-wide text-[#F5F1F2] hover:text-[#FB7185] transition-colors leading-snug text-balance"
             >
               {clash.title}
             </Link>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="text-xs font-mono-num text-[#A7A0AA] mr-1">
+          <div className="flex items-center gap-1 shrink-0">
+            <span className="text-xs font-mono-num text-[#D8D2DC] mr-1 whitespace-nowrap">
               {formatCompactNumber(totalVotes)} {totalVotes === 1 ? 'vote' : 'votes'}
             </span>
 
@@ -1203,109 +1355,108 @@ export const ClashPage: React.FC = () => {
                     : 'Official Result: Draw'}
               </span>
             </div>
-            <span className="text-[#A7A0AA] font-mono-num">
+            <span className="text-[#D8D2DC] font-mono-num">
               {formatCompactNumber(clash.leftVotes)} – {formatCompactNumber(clash.rightVotes)}
             </span>
           </div>
         )}
 
-        {/* Split 2-Column VS Arena */}
-        <div className="relative grid grid-cols-2 gap-2.5 sm:gap-3">
-          {/* Left Side */}
+        {/* Split 2-Column VS Arena — High-Contrast Separated Artwork & Typography */}
+        <div className="relative grid grid-cols-2 gap-3 items-stretch">
+          {/* Left Contender Card */}
           <div
             onClick={() => {
               if (isLive && votingId !== clash.id) {
                 void handleVote(clash, 'left');
               }
             }}
-            className={`group/left relative rounded-xl overflow-hidden aspect-[4/5] sm:aspect-[4/4] border transition-all duration-150 bg-[#09080B] ${
+            className={`group/left flex flex-col rounded-2xl overflow-hidden border transition-all duration-150 bg-[#0D0A10] ${
               isLive ? 'cursor-pointer' : ''
             } ${
               clash.viewerVote === 'left'
-                ? 'border-[#C0263D] ring-1 ring-[#C0263D] shadow-[0_0_20px_rgba(192,38,61,0.22)]'
+                ? 'border-[#C0263D] ring-1 ring-[#C0263D] shadow-[0_0_22px_rgba(192,38,61,0.24)]'
                 : isCompleted && clash.winnerSide === 'left'
                   ? 'border-amber-400/70'
-                  : 'border-white/10 hover:border-[#C0263D]/50'
+                  : 'border-white/12 hover:border-[#C0263D]/60'
             }`}
           >
-            {clash.leftEntry?.mediaType === 'video' ? (
-              <video
-                src={clash.leftEntry.mediaUrl}
-                poster={clash.leftEntry.posterUrl || clash.leftImageUrl}
-                muted
-                playsInline
-                preload="metadata"
-                className="w-full h-full object-cover group-hover/left:scale-[1.03] transition-transform duration-200"
-              />
-            ) : (
-              <KageImage
-                src={clash.leftEntry?.mediaUrl || clash.leftImageUrl}
-                alt={clash.leftName}
-                className="w-full h-full object-cover group-hover/left:scale-[1.03] transition-transform duration-200"
-              />
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-[#09080B] via-[#09080B]/40 to-black/20" />
-
-            {/* Top Action Buttons on Left Contender: View Edit & Upload Edit */}
-            <div
-              className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1.5 z-10"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {clash.leftEntry ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setViewerMedia({
-                      clashTitle: clash.title,
-                      sideLabel: 'Challenger Edit',
-                      contenderName: clash.leftName,
-                      mediaType: clash.leftEntry!.mediaType,
-                      mediaUrl: clash.leftEntry!.mediaUrl,
-                      posterUrl: clash.leftEntry!.posterUrl || clash.leftImageUrl,
-                      entryTitle: clash.leftEntry!.title,
-                      caption: clash.leftEntry!.caption,
-                      submitterUsername: clash.leftEntry!.submitter.username,
-                      submitterDisplayName: clash.leftEntry!.submitter.displayName,
-                    })
-                  }
-                  className="min-h-[34px] px-2.5 rounded-lg bg-[#09080B]/90 hover:bg-[#C0263D] border border-white/15 text-[11px] font-semibold text-[#F5F1F2] flex items-center gap-1.5 kage-press cursor-pointer"
-                >
-                  {clash.leftEntry.mediaType === 'video' ? (
-                    <Play className="w-3 h-3 fill-current" />
-                  ) : (
-                    <Eye className="w-3 h-3" />
-                  )}
-                  <span>View Edit</span>
-                </button>
-              ) : clash.clashMode !== 'solo_character' ? (
-                <span className="text-[11px] text-[#A7A0AA] bg-[#09080B]/80 px-2 py-1 rounded-md">
-                  No edit yet
-                </span>
+            {/* Clean Unobstructed Media Frame */}
+            <div className="relative aspect-[4/3] sm:aspect-[16/13] bg-[#09080B] overflow-hidden shrink-0">
+              {clash.leftEntry?.mediaType === 'video' ? (
+                <video
+                  src={clash.leftEntry.mediaUrl}
+                  poster={clash.leftEntry.posterUrl || clash.leftImageUrl}
+                  muted
+                  playsInline
+                  preload="metadata"
+                  className="w-full h-full object-cover object-top group-hover/left:scale-[1.03] transition-transform duration-200"
+                />
               ) : (
-                <span />
+                <KageImage
+                  src={clash.leftEntry?.mediaUrl || clash.leftImageUrl}
+                  alt={clash.leftName}
+                  className="w-full h-full object-cover object-top group-hover/left:scale-[1.03] transition-transform duration-200"
+                />
               )}
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0D0A10]/65 via-transparent to-black/25" />
 
-              {clash.canSubmitLeftEntry && (
-                <button
-                  type="button"
-                  onClick={() => handleOpenUploadEntry(clash, 'left')}
-                  className="min-h-[34px] px-2.5 rounded-lg bg-[#C0263D] hover:bg-[#d42b44] text-[11px] font-semibold text-white flex items-center gap-1 kage-press cursor-pointer"
+              {(clash.leftEntry || clash.canSubmitLeftEntry) && (
+                <div
+                  className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1.5 z-10"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <Upload className="w-3 h-3" />
-                  <span>{clash.leftEntry ? 'Replace' : 'Upload Edit'}</span>
-                </button>
+                  {clash.leftEntry ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setViewerMedia({
+                          clashTitle: clash.title,
+                          sideLabel: 'Challenger Edit',
+                          contenderName: clash.leftName,
+                          mediaType: clash.leftEntry!.mediaType,
+                          mediaUrl: clash.leftEntry!.mediaUrl,
+                          posterUrl: clash.leftEntry!.posterUrl || clash.leftImageUrl,
+                          entryTitle: clash.leftEntry!.title,
+                          caption: clash.leftEntry!.caption,
+                          submitterUsername: clash.leftEntry!.submitter.username,
+                          submitterDisplayName: clash.leftEntry!.submitter.displayName,
+                        })
+                      }
+                      className="min-h-[32px] px-2.5 rounded-lg bg-[#09080B]/90 hover:bg-[#C0263D] text-white text-[11px] font-bold inline-flex items-center gap-1.5 border border-white/20 backdrop-blur-sm kage-press cursor-pointer transition-colors"
+                      title="Watch Edit in Theater Viewer"
+                    >
+                      <Play className="w-3 h-3 fill-white" />
+                      <span>Watch Edit</span>
+                    </button>
+                  ) : (
+                    <span />
+                  )}
+
+                  {clash.canSubmitLeftEntry && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenUploadEntry(clash, 'left')}
+                      className="min-h-[32px] px-2.5 rounded-lg bg-[#C0263D] hover:bg-[#d42b44] text-[11px] font-semibold text-white inline-flex items-center gap-1 kage-press cursor-pointer"
+                    >
+                      <Upload className="w-3 h-3" />
+                      <span>{clash.leftEntry ? 'Replace' : 'Upload Edit'}</span>
+                    </button>
+                  )}
+                </div>
               )}
             </div>
 
-            <div className="absolute inset-x-0 bottom-0 p-3 space-y-2">
-              <div>
-                <p className="text-[11px] text-[#C0263D] font-semibold truncate">
+            {/* Clean High-Contrast Contender Footer (Consistent Left Alignment) */}
+            <div className="p-3 sm:p-3.5 flex-1 flex flex-col justify-between gap-2.5 border-t border-white/8 text-left">
+              <div className="space-y-0.5 min-w-0">
+                <p className="text-[11px] font-semibold text-[#FB7185] truncate">
                   {clash.leftSubtitle || 'Challenger'}
                 </p>
-                <h3 className="text-xs sm:text-sm font-bold text-[#F5F1F2] line-clamp-1 uppercase">
+                <h3 className="text-xs sm:text-sm font-bold text-[#F5F1F2] line-clamp-1 uppercase tracking-wide">
                   {clash.leftName}
                 </h3>
               </div>
+
               <button
                 type="button"
                 disabled={!isLive || votingId === clash.id}
@@ -1313,19 +1464,19 @@ export const ClashPage: React.FC = () => {
                   e.stopPropagation();
                   void handleVote(clash, 'left');
                 }}
-                className={`w-full min-h-[40px] rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 kage-press ${
+                className={`w-full min-h-[42px] rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors kage-press mt-auto ${
                   justVoted?.clashId === clash.id && justVoted.side === 'left'
                     ? 'kage-heart-pop'
                     : ''
                 } ${
                   !isLive
-                    ? 'bg-[#09080B]/70 text-[#A7A0AA] border border-white/10 cursor-not-allowed'
+                    ? 'bg-[#141116] text-[#A7A0AA] border border-white/10 cursor-not-allowed'
                     : clash.viewerVote === 'left'
-                      ? 'bg-[#C0263D] text-white cursor-pointer'
-                      : 'bg-[#09080B]/85 hover:bg-[#C0263D] text-[#F5F1F2] border border-white/15 cursor-pointer'
+                      ? 'bg-[#C0263D] text-white shadow-[0_0_16px_rgba(192,38,61,0.4)] cursor-pointer'
+                      : 'bg-[#17121A] hover:bg-[#C0263D] text-[#F5F1F2] border border-white/15 cursor-pointer'
                 }`}
               >
-                {clash.viewerVote === 'left' && <Check className="w-3.5 h-3.5" />}
+                {clash.viewerVote === 'left' && <Check className="w-3.5 h-3.5 shrink-0" />}
                 <span>
                   {clash.viewerVote === 'left'
                     ? 'Voted'
@@ -1337,106 +1488,105 @@ export const ClashPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Center VS Emblem */}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 w-11 h-11 rounded-full bg-[#09080B] border-2 border-[#C0263D] ring-2 ring-[#6D28D9]/45 flex items-center justify-center shadow-[0_0_22px_rgba(192,38,61,0.45)] pointer-events-none">
+          {/* Center VS Emblem Positioned Cleanly on Media Seam */}
+          <div className="absolute left-1/2 top-[30%] sm:top-[32%] -translate-x-1/2 -translate-y-1/2 z-10 w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#09080B] border-2 border-[#C0263D] ring-2 ring-[#6D28D9]/45 flex items-center justify-center shadow-[0_0_24px_rgba(0,0,0,0.9)] pointer-events-none">
             <span className="font-display text-xs font-bold tracking-wider text-[#F5F1F2]">VS</span>
           </div>
 
-          {/* Right Side */}
+          {/* Right Contender Card */}
           <div
             onClick={() => {
               if (isLive && votingId !== clash.id) {
                 void handleVote(clash, 'right');
               }
             }}
-            className={`group/right relative rounded-xl overflow-hidden aspect-[4/5] sm:aspect-[4/4] border transition-all duration-150 bg-[#09080B] ${
+            className={`group/right flex flex-col rounded-2xl overflow-hidden border transition-all duration-150 bg-[#0D0A10] ${
               isLive ? 'cursor-pointer' : ''
             } ${
               clash.viewerVote === 'right'
-                ? 'border-[#6D28D9] ring-1 ring-[#6D28D9] shadow-[0_0_20px_rgba(109,40,217,0.25)]'
+                ? 'border-[#6D28D9] ring-1 ring-[#6D28D9] shadow-[0_0_22px_rgba(109,40,217,0.28)]'
                 : isCompleted && clash.winnerSide === 'right'
                   ? 'border-amber-400/70'
-                  : 'border-white/10 hover:border-[#6D28D9]/55'
+                  : 'border-white/12 hover:border-[#6D28D9]/65'
             }`}
           >
-            {clash.rightEntry?.mediaType === 'video' ? (
-              <video
-                src={clash.rightEntry.mediaUrl}
-                poster={clash.rightEntry.posterUrl || clash.rightImageUrl}
-                muted
-                playsInline
-                preload="metadata"
-                className="w-full h-full object-cover group-hover/right:scale-[1.03] transition-transform duration-200"
-              />
-            ) : (
-              <KageImage
-                src={clash.rightEntry?.mediaUrl || clash.rightImageUrl}
-                alt={clash.rightName}
-                className="w-full h-full object-cover group-hover/right:scale-[1.03] transition-transform duration-200"
-              />
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-[#09080B] via-[#09080B]/40 to-black/20" />
-
-            {/* Top Action Buttons on Right Contender: View Edit & Upload Edit */}
-            <div
-              className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1.5 z-10"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {clash.canSubmitRightEntry ? (
-                <button
-                  type="button"
-                  onClick={() => handleOpenUploadEntry(clash, 'right')}
-                  className="min-h-[34px] px-2.5 rounded-lg bg-[#6D28D9] hover:bg-[#7c3aed] text-[11px] font-semibold text-white flex items-center gap-1 kage-press cursor-pointer"
-                >
-                  <Upload className="w-3 h-3" />
-                  <span>{clash.rightEntry ? 'Replace' : 'Upload Edit'}</span>
-                </button>
+            {/* Clean Unobstructed Media Frame */}
+            <div className="relative aspect-[4/3] sm:aspect-[16/13] bg-[#09080B] overflow-hidden shrink-0">
+              {clash.rightEntry?.mediaType === 'video' ? (
+                <video
+                  src={clash.rightEntry.mediaUrl}
+                  poster={clash.rightEntry.posterUrl || clash.rightImageUrl}
+                  muted
+                  playsInline
+                  preload="metadata"
+                  className="w-full h-full object-cover object-top group-hover/right:scale-[1.03] transition-transform duration-200"
+                />
               ) : (
-                <span />
+                <KageImage
+                  src={clash.rightEntry?.mediaUrl || clash.rightImageUrl}
+                  alt={clash.rightName}
+                  className="w-full h-full object-cover object-top group-hover/right:scale-[1.03] transition-transform duration-200"
+                />
               )}
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0D0A10]/65 via-transparent to-black/25" />
 
-              {clash.rightEntry ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setViewerMedia({
-                      clashTitle: clash.title,
-                      sideLabel: 'Contender Edit',
-                      contenderName: clash.rightName,
-                      mediaType: clash.rightEntry!.mediaType,
-                      mediaUrl: clash.rightEntry!.mediaUrl,
-                      posterUrl: clash.rightEntry!.posterUrl || clash.rightImageUrl,
-                      entryTitle: clash.rightEntry!.title,
-                      caption: clash.rightEntry!.caption,
-                      submitterUsername: clash.rightEntry!.submitter.username,
-                      submitterDisplayName: clash.rightEntry!.submitter.displayName,
-                    })
-                  }
-                  className="min-h-[34px] px-2.5 rounded-lg bg-[#09080B]/90 hover:bg-[#6D28D9] border border-white/15 text-[11px] font-semibold text-[#F5F1F2] flex items-center gap-1.5 kage-press cursor-pointer"
+              {(clash.rightEntry || clash.canSubmitRightEntry) && (
+                <div
+                  className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1.5 z-10"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  {clash.rightEntry.mediaType === 'video' ? (
-                    <Play className="w-3 h-3 fill-current" />
+                  {clash.canSubmitRightEntry ? (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenUploadEntry(clash, 'right')}
+                      className="min-h-[32px] px-2.5 rounded-lg bg-[#6D28D9] hover:bg-[#7c3aed] text-[11px] font-semibold text-white inline-flex items-center gap-1 kage-press cursor-pointer"
+                    >
+                      <Upload className="w-3 h-3" />
+                      <span>{clash.rightEntry ? 'Replace' : 'Upload Edit'}</span>
+                    </button>
                   ) : (
-                    <Eye className="w-3 h-3" />
+                    <span />
                   )}
-                  <span>View Edit</span>
-                </button>
-              ) : clash.clashMode !== 'solo_character' ? (
-                <span className="text-[11px] text-[#A7A0AA] bg-[#09080B]/80 px-2 py-1 rounded-md">
-                  No edit yet
-                </span>
-              ) : null}
+
+                  {clash.rightEntry && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setViewerMedia({
+                          clashTitle: clash.title,
+                          sideLabel: 'Contender Edit',
+                          contenderName: clash.rightName,
+                          mediaType: clash.rightEntry!.mediaType,
+                          mediaUrl: clash.rightEntry!.mediaUrl,
+                          posterUrl: clash.rightEntry!.posterUrl || clash.rightImageUrl,
+                          entryTitle: clash.rightEntry!.title,
+                          caption: clash.rightEntry!.caption,
+                          submitterUsername: clash.rightEntry!.submitter.username,
+                          submitterDisplayName: clash.rightEntry!.submitter.displayName,
+                        })
+                      }
+                      className="min-h-[32px] px-2.5 rounded-lg bg-[#09080B]/90 hover:bg-[#6D28D9] text-white text-[11px] font-bold inline-flex items-center gap-1.5 border border-white/20 backdrop-blur-sm kage-press cursor-pointer transition-colors"
+                      title="Watch Edit in Theater Viewer"
+                    >
+                      <Play className="w-3 h-3 fill-white" />
+                      <span>Watch Edit</span>
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
-            <div className="absolute inset-x-0 bottom-0 p-3 space-y-2 text-right">
-              <div>
-                <p className="text-[11px] text-[#6D28D9] font-semibold truncate">
+            {/* Clean High-Contrast Contender Footer (Consistent Left Alignment) */}
+            <div className="p-3 sm:p-3.5 flex-1 flex flex-col justify-between gap-2.5 border-t border-white/8 text-left">
+              <div className="space-y-0.5 min-w-0">
+                <p className="text-[11px] font-semibold text-[#A78BFA] truncate">
                   {clash.rightSubtitle || 'Contender'}
                 </p>
-                <h3 className="text-xs sm:text-sm font-bold text-[#F5F1F2] line-clamp-1 uppercase">
+                <h3 className="text-xs sm:text-sm font-bold text-[#F5F1F2] line-clamp-1 uppercase tracking-wide">
                   {clash.rightName}
                 </h3>
               </div>
+
               <button
                 type="button"
                 disabled={!isLive || votingId === clash.id}
@@ -1444,19 +1594,19 @@ export const ClashPage: React.FC = () => {
                   e.stopPropagation();
                   void handleVote(clash, 'right');
                 }}
-                className={`w-full min-h-[40px] rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 kage-press ${
+                className={`w-full min-h-[42px] rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors kage-press mt-auto ${
                   justVoted?.clashId === clash.id && justVoted.side === 'right'
                     ? 'kage-heart-pop'
                     : ''
                 } ${
                   !isLive
-                    ? 'bg-[#09080B]/70 text-[#A7A0AA] border border-white/10 cursor-not-allowed'
+                    ? 'bg-[#141116] text-[#A7A0AA] border border-white/10 cursor-not-allowed'
                     : clash.viewerVote === 'right'
-                      ? 'bg-[#6D28D9] text-white cursor-pointer'
-                      : 'bg-[#09080B]/85 hover:bg-[#6D28D9] text-[#F5F1F2] border border-white/15 cursor-pointer'
+                      ? 'bg-[#6D28D9] text-white shadow-[0_0_16px_rgba(109,40,217,0.4)] cursor-pointer'
+                      : 'bg-[#17121A] hover:bg-[#6D28D9] text-[#F5F1F2] border border-white/15 cursor-pointer'
                 }`}
               >
-                {clash.viewerVote === 'right' && <Check className="w-3.5 h-3.5" />}
+                {clash.viewerVote === 'right' && <Check className="w-3.5 h-3.5 shrink-0" />}
                 <span>
                   {clash.viewerVote === 'right'
                     ? 'Voted'
@@ -1471,20 +1621,24 @@ export const ClashPage: React.FC = () => {
 
         {/* Live Tug-Of-War Meter */}
         <div className="space-y-1.5 pt-0.5">
-          <div className="flex items-center justify-between text-xs font-mono-num">
-            <span className="text-[#C0263D] font-bold">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-xs font-mono-num">
+            <span className="text-[#FB7185] font-bold text-left">
               {leftPct}% ({formatCompactNumber(clash.leftVotes)})
             </span>
-            {totalVotes > 0 && leftPct !== rightPct && (
-              <span className="text-[11px] text-[#A7A0AA] font-sans">
-                {leftPct > rightPct ? `${clash.leftName} leads` : `${clash.rightName} leads`}
-              </span>
-            )}
-            <span className="text-[#6D28D9] font-bold">
+            <span className="text-[11px] text-[#D8D2DC] font-sans text-center truncate max-w-[160px]">
+              {totalVotes === 0
+                ? 'Be first to vote'
+                : leftPct === rightPct
+                  ? 'Deadlocked'
+                  : leftPct > rightPct
+                    ? `${clash.leftName} leads`
+                    : `${clash.rightName} leads`}
+            </span>
+            <span className="text-[#A78BFA] font-bold text-right">
               ({formatCompactNumber(clash.rightVotes)}) {rightPct}%
             </span>
           </div>
-          <div className="h-2.5 rounded-full bg-[#09080B] overflow-hidden flex border border-white/8">
+          <div className="h-2.5 rounded-full bg-[#09080B] overflow-hidden flex border border-white/10">
             <div
               className="h-full bg-[#C0263D] transition-all duration-300"
               style={{ width: `${leftPct}%` }}
@@ -1591,15 +1745,79 @@ export const ClashPage: React.FC = () => {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => (user ? setCreateOpen(true) : navigate('/auth/login'))}
-          className="min-h-[44px] px-4 py-2 rounded-xl bg-[#C0263D] hover:bg-[#d42b44] text-white text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Challenge</span>
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="hidden sm:flex items-center p-1 rounded-xl bg-[#141116] border border-white/10">
+            <button
+              type="button"
+              onClick={() => setClashSectionView('arena')}
+              className={`min-h-[34px] px-3 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
+                clashSectionView === 'arena'
+                  ? 'bg-[#C0263D] text-white'
+                  : 'text-[#A7A0AA] hover:text-white'
+              }`}
+            >
+              <Swords className="w-3.5 h-3.5" />
+              <span>Arena</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setClashSectionView('leaderboard')}
+              className={`min-h-[34px] px-3 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
+                clashSectionView === 'leaderboard'
+                  ? 'bg-[#6D28D9] text-white'
+                  : 'text-[#A7A0AA] hover:text-white'
+              }`}
+            >
+              <Trophy className="w-3.5 h-3.5" />
+              <span>Leaderboard</span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => (user ? setCreateOpen(true) : navigate('/auth/login'))}
+            className="min-h-[44px] px-4 py-2 rounded-xl bg-[#C0263D] hover:bg-[#d42b44] text-white text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Challenge</span>
+          </button>
+        </div>
       </div>
+
+      {/* Mobile Arena vs Leaderboard Switcher */}
+      {!routeClashId && (
+        <div className="flex sm:hidden items-center p-1 rounded-xl bg-[#141116] border border-white/10">
+          <button
+            type="button"
+            onClick={() => setClashSectionView('arena')}
+            className={`flex-1 min-h-[36px] rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+              clashSectionView === 'arena'
+                ? 'bg-[#C0263D] text-white'
+                : 'text-[#A7A0AA] hover:text-white'
+            }`}
+          >
+            <Swords className="w-3.5 h-3.5" />
+            <span>Arena Battles</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setClashSectionView('leaderboard')}
+            className={`flex-1 min-h-[36px] rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+              clashSectionView === 'leaderboard'
+                ? 'bg-[#6D28D9] text-white'
+                : 'text-[#A7A0AA] hover:text-white'
+            }`}
+          >
+            <Trophy className="w-3.5 h-3.5" />
+            <span>Leaderboard</span>
+          </button>
+        </div>
+      )}
+
+      {clashSectionView === 'leaderboard' && !routeClashId ? (
+        <GlobalLeaderboard defaultTab="hunters" showHeader={false} />
+      ) : (
+        <>
 
       {/* Focused Deep-Linked Clash View (/clash/:clashId) */}
       {routeClashId && focusedClash && (
@@ -1619,59 +1837,93 @@ export const ClashPage: React.FC = () => {
         </section>
       )}
 
-      {/* Quick Clash Composer Card (Prompting community debates & duels just like PULSE) */}
-      <div className="rounded-2xl bg-[#141116] border border-white/10 p-3.5 sm:p-4 space-y-3">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-[#C0263D]/20 border border-[#C0263D]/40 flex items-center justify-center shrink-0">
-            <Swords className="w-4 h-4 text-[#C0263D]" />
+      {/* Quick Clash Challenge Studio */}
+      <div className="rounded-2xl bg-[#141116] border border-white/10 p-4 sm:p-5 space-y-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-[#C0263D]/20 border border-[#C0263D]/40 flex items-center justify-center shrink-0">
+              <Swords className="w-4 h-4 text-[#FB7185]" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-sm font-bold text-[#F5F1F2] truncate">
+                Clash Challenge Studio
+              </h2>
+              <p className="text-xs text-[#A7A0AA] truncate">
+                Start a Character Matchup, challenge a hunter 1v1, or ignite a Guild War.
+              </p>
+            </div>
           </div>
-          <div className="min-w-0 flex-1">
-            <h2 className="text-xs sm:text-sm font-bold text-[#F5F1F2] truncate">
-              Spark an Anime War — Launch a Challenge
-            </h2>
-            <p className="text-[11px] text-[#A7A0AA] truncate">
-              Pitch any 2 characters, guilds, or theories. The community votes in real time.
-            </p>
+
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {(
+              [
+                { mode: 'solo_character' as const, label: 'Character Clash', color: 'bg-[#C0263D] hover:bg-[#d42b44] text-white' },
+                { mode: 'user_duel' as const, label: '1v1 Edit Duel', color: 'bg-[#09080B] hover:bg-[#1C1720] text-[#F5F1F2] border border-white/15' },
+                { mode: 'community_duel' as const, label: 'Guild War', color: 'bg-[#6D28D9]/25 hover:bg-[#6D28D9] text-[#F5F1F2] border border-[#6D28D9]/50' },
+              ]
+            ).map((btn) => (
+              <button
+                key={btn.mode}
+                type="button"
+                onClick={() => {
+                  if (!user) {
+                    navigate('/auth/login');
+                    return;
+                  }
+                  handleModeSwitch(btn.mode);
+                  setCreateOpen(true);
+                }}
+                className={`min-h-[38px] px-3.5 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 kage-press cursor-pointer transition-colors whitespace-nowrap ${btn.color}`}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>{btn.label}</span>
+              </button>
+            ))}
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              if (!user) {
-                navigate('/auth/login');
-                return;
-              }
-              setCreateOpen(true);
-            }}
-            className="min-h-[38px] px-4 rounded-xl bg-[#C0263D] hover:bg-[#d42b44] text-xs font-semibold text-white flex items-center gap-1.5 shrink-0 kage-press cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Launch Clash</span>
-          </button>
         </div>
 
-        {/* Quick Battle Idea Badges */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar text-xs">
-          <span className="text-[11px] text-[#A7A0AA] shrink-0 font-medium mr-1">Trending Matchups:</span>
+        {/* Trending Quick-Launch Matchups */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-0.5 no-scrollbar text-xs">
+          <span className="text-[11px] text-[#A7A0AA] shrink-0 font-semibold">
+            Quick Matchups:
+          </span>
           {[
-            { label: 'Gojo vs Sukuna', mode: 'solo_character', title: 'Gojo Satoru vs Ryomen Sukuna: Peak Sorcery' },
-            { label: 'Luffy vs Naruto', mode: 'solo_character', title: 'Gear 5 Sun God Nika vs Baryon Mode' },
-            { label: 'Zoro vs Levi', mode: 'solo_character', title: "King of Hell vs Humanity's Strongest" },
-            { label: 'Zenitsu vs Killua', mode: 'solo_character', title: 'Godspeed Thunder: Blinding Velocity Showdown' },
-            { label: 'Light vs Lelouch', mode: 'solo_character', title: 'Mastermind Warfare: Death Note vs Geass' },
+            {
+              label: 'Gojo vs Sukuna',
+              leftQuery: 'Satoru Gojo',
+              rightQuery: 'Ryomen Sukuna',
+              title: 'Gojo Satoru vs Ryomen Sukuna: Peak Sorcery',
+            },
+            {
+              label: 'Luffy vs Naruto',
+              leftQuery: 'Monkey D. Luffy',
+              rightQuery: 'Naruto Uzumaki',
+              title: 'Gear 5 Sun God Nika vs Baryon Mode',
+            },
+            {
+              label: 'Zoro vs Levi',
+              leftQuery: 'Roronoa Zoro',
+              rightQuery: 'Levi Ackerman',
+              title: "King of Hell vs Humanity's Strongest",
+            },
+            {
+              label: 'Zenitsu vs Killua',
+              leftQuery: 'Zenitsu',
+              rightQuery: 'Killua',
+              title: 'Godspeed Thunder: Blinding Velocity Showdown',
+            },
+            {
+              label: 'Light vs Lelouch',
+              leftQuery: 'Light Yagami',
+              rightQuery: 'Lelouch',
+              title: 'Mastermind Warfare: Death Note vs Geass',
+            },
           ].map((idea) => (
             <button
               key={idea.label}
               type="button"
-              onClick={() => {
-                if (!user) {
-                  navigate('/auth/login');
-                  return;
-                }
-                setTitle(idea.title);
-                setCreateMode(idea.mode as any);
-                setCreateOpen(true);
-              }}
-              className="px-2.5 py-1 rounded-lg bg-[#09080B] hover:bg-[#1C1720] border border-white/10 hover:border-[#C0263D]/60 text-[11px] text-[#D8D2DC] hover:text-[#F5F1F2] shrink-0 transition-colors cursor-pointer"
+              onClick={() => void handleQuickMatchupIdea(idea)}
+              className="px-3 py-1.5 rounded-xl bg-[#09080B] hover:bg-[#1C1720] border border-white/12 hover:border-[#C0263D]/60 text-xs font-medium text-[#D8D2DC] hover:text-[#F5F1F2] shrink-0 transition-colors cursor-pointer"
             >
               {idea.label}
             </button>
@@ -1765,6 +2017,8 @@ export const ClashPage: React.FC = () => {
             </div>
           )}
         </div>
+      )}
+        </>
       )}
 
       {/* Fullscreen "View Edit" Media Viewer Modal */}
@@ -2179,6 +2433,40 @@ export const ClashPage: React.FC = () => {
               {/* Mode-Specific Contender Configuration */}
               {createMode === 'solo_character' && (
                 <div className="space-y-3 rounded-xl bg-[#09080B] border border-white/10 p-3.5">
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 p-2.5 rounded-xl bg-[#141116] border border-white/10">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {selectedLeftChar ? (
+                        <KageImage
+                          src={selectedLeftChar.imageUrl}
+                          alt={selectedLeftChar.name}
+                          className="w-9 h-9 rounded-lg object-cover object-top shrink-0 border border-[#C0263D]/60"
+                        />
+                      ) : (
+                        <div className="w-9 h-9 rounded-lg bg-[#09080B] border border-white/10 shrink-0" />
+                      )}
+                      <span className="text-xs font-bold text-[#F5F1F2] truncate">
+                        {selectedLeftChar ? selectedLeftChar.name : 'Select Left'}
+                      </span>
+                    </div>
+
+                    <span className="text-[11px] font-bold text-[#FB7185] px-1">VS</span>
+
+                    <div className="flex items-center justify-end gap-2 min-w-0">
+                      <span className="text-xs font-bold text-[#F5F1F2] truncate text-right">
+                        {selectedRightChar ? selectedRightChar.name : 'Select Right'}
+                      </span>
+                      {selectedRightChar ? (
+                        <KageImage
+                          src={selectedRightChar.imageUrl}
+                          alt={selectedRightChar.name}
+                          className="w-9 h-9 rounded-lg object-cover object-top shrink-0 border border-[#6D28D9]/60"
+                        />
+                      ) : (
+                        <div className="w-9 h-9 rounded-lg bg-[#09080B] border border-white/10 shrink-0" />
+                      )}
+                    </div>
+                  </div>
+
                   <p className="text-[11px] text-[#A7A0AA]">
                     Community Fan Vote: Solo Character Clashes go live immediately with verified
                     catalogue characters and carry no staked duel rewards.
@@ -2187,7 +2475,7 @@ export const ClashPage: React.FC = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {/* Left Character */}
                     <div className="space-y-2">
-                      <label className="block text-xs font-semibold text-[#C0263D]">
+                      <label className="block text-xs font-semibold text-[#FB7185]">
                         Left Character
                       </label>
                       {selectedLeftChar ? (
@@ -2254,7 +2542,7 @@ export const ClashPage: React.FC = () => {
 
                     {/* Right Character */}
                     <div className="space-y-2">
-                      <label className="block text-xs font-semibold text-[#6D28D9]">
+                      <label className="block text-xs font-semibold text-[#A78BFA]">
                         Right Character
                       </label>
                       {selectedRightChar ? (

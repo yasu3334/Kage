@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   BookmarkCheck,
+  BookOpen,
   Check,
   ExternalLink,
   Eye,
@@ -277,6 +278,7 @@ export const AnimeDetailPage: React.FC = () => {
     discussions = [],
     guilds = [],
     reviews = [],
+    mangaRelations = [],
     kageReviewCount = 0,
     kageAverageScore = null,
   } = data;
@@ -456,6 +458,16 @@ export const AnimeDetailPage: React.FC = () => {
               <span>{verifiedStreaming.length > 0 ? 'Watch Now' : 'Where to Watch'}</span>
             </button>
 
+            {Array.isArray(mangaRelations) && mangaRelations.length > 0 && (
+              <Link
+                to={`/inkverse/manga/${mangaRelations[0].manga.id}`}
+                className="min-h-[44px] px-4 py-2.5 rounded-full bg-[#6D28D9] hover:bg-[#7c3aed] text-white text-xs sm:text-sm font-semibold inline-flex items-center gap-2 shadow-lg kage-press whitespace-nowrap"
+              >
+                <BookOpen className="w-4 h-4" />
+                <span>Read Manga</span>
+              </Link>
+            )}
+
             {anime.trailerEmbedUrl ? (
               <button
                 type="button"
@@ -605,6 +617,66 @@ export const AnimeDetailPage: React.FC = () => {
           </div>
         )}
       </section>
+
+      {/* 3B. Verified Anime-to-Manga Source & Continuation Links (INKVERSE) */}
+      {Array.isArray(mangaRelations) && mangaRelations.length > 0 && (
+        <section className="p-4 sm:p-5 rounded-2xl bg-[#141116] border border-[#C0263D]/30 space-y-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-[#C0263D]" />
+              <h2 className="text-sm sm:text-base font-bold text-[#F5F1F2]">
+                Manga &amp; Source Material in INKVERSE
+              </h2>
+            </div>
+            <Link
+              to="/inkverse"
+              className="text-xs font-semibold text-[#C0263D] hover:text-rose-400"
+            >
+              Open INKVERSE →
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {mangaRelations.map((rel: any, idx: number) => (
+              <Link
+                key={`${rel.manga?.id}-${idx}`}
+                to={`/inkverse/manga/${rel.manga?.id}`}
+                className="p-3.5 rounded-xl bg-[#09080B] border border-white/10 hover:border-[#C0263D]/60 flex items-start gap-3.5 transition-colors"
+              >
+                <div className="w-16 aspect-[2/3] rounded-lg overflow-hidden bg-[#141116] shrink-0">
+                  <KageImage
+                    strictArtwork
+                    src={rel.manga?.coverImageUrl}
+                    alt={rel.manga?.title || 'Manga'}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#C0263D]">
+                    {rel.relationLabel}
+                  </p>
+                  <p className="text-sm font-bold text-[#F5F1F2] line-clamp-1">
+                    {rel.manga?.title}
+                  </p>
+                  <p className="text-[11px] text-[#A7A0AA] font-mono-num">
+                    {rel.manga?.format}
+                    {rel.manga?.chaptersCount ? ` · ${rel.manga.chaptersCount} chapters` : ''}
+                    {rel.manga?.score ? ` · ★ ${rel.manga.score.toFixed(1)}` : ''}
+                  </p>
+                  {rel.continuationNote && (
+                    <p className="text-xs text-[#A7A0AA] leading-relaxed">
+                      {rel.continuationNote}
+                    </p>
+                  )}
+                  <p className="text-xs font-semibold text-[#F5F1F2] inline-flex items-center gap-1 pt-0.5">
+                    <span>Read in INKVERSE →</span>
+                  </p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* 4. Honest Official Streaming & Official Trailer Section (Part 12) */}
       <section

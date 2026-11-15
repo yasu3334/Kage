@@ -2,11 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Bell,
+  BookOpen,
   Calendar,
   ChevronRight,
   Compass,
   Crown,
   Filter,
+  Gamepad2,
   Inbox,
   LogIn,
   Megaphone,
@@ -17,12 +19,14 @@ import {
   Settings,
   Star,
   Swords,
+  Trophy,
   User,
   Users,
   X,
   Zap,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { apiFetch } from '../lib/api';
 import { KageImage } from './KageImage';
 import { KageLogo, OwnerBadge } from './KageBrand';
 
@@ -41,8 +45,62 @@ export const AppShell: React.FC<AppShellProps> = ({ children, onReplayIntro }) =
     dismissAnnouncement,
   } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [headerQuery, setHeaderQuery] = useState('');
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestions, setSuggestions] = useState<{
+    manga: any[];
+    anime: any[];
+    authors: any[];
+    characters: any[];
+  }>({ manga: [], anime: [], authors: [], characters: [] });
+  const searchBoxRef = React.useRef<HTMLDivElement | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target as Node)) {
+        setSuggestionsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    const q = headerQuery.trim();
+    if (q.length < 2) {
+      setSuggestions({ manga: [], anime: [], authors: [], characters: [] });
+      setSuggestionsLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    setSuggestionsLoading(true);
+    const timer = setTimeout(() => {
+      apiFetch<any>(`/api/inkverse/suggestions?q=${encodeURIComponent(q)}`, {
+        signal: controller.signal,
+      })
+        .then((res) => {
+          if (!controller.signal.aborted) {
+            setSuggestions({
+              manga: Array.isArray(res.manga) ? res.manga : [],
+              anime: Array.isArray(res.anime) ? res.anime : [],
+              authors: Array.isArray(res.authors) ? res.authors : [],
+              characters: Array.isArray(res.characters) ? res.characters : [],
+            });
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (!controller.signal.aborted) setSuggestionsLoading(false);
+        });
+    }, 200);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [headerQuery]);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -190,34 +248,57 @@ export const AppShell: React.FC<AppShellProps> = ({ children, onReplayIntro }) =
   const isCommunityChatRoom = /^\/guilds\/[^/]+\/rooms\/[^/]+/.test(location.pathname);
   const isCommunityProfile =
     location.pathname.startsWith('/guilds/') && !isCommunityChatRoom;
+  const isInkverseReader = /^\/inkverse\/read\//.test(location.pathname);
   const hideTopBar =
     isVoiceActiveRoom ||
     isCommunityChatRoom ||
     isCommunityProfile ||
+    isInkverseReader ||
     location.pathname.startsWith('/anime/') ||
     location.pathname.startsWith('/inbox');
 
-  // Immersive full-height chat/stage routes that render their own fixed bottom bar
+  // Immersive full-height chat/stage/reader routes that render their own fixed bottom bar
   const hideBottomNav =
-    isVoiceActiveRoom || isCommunityChatRoom || location.pathname.startsWith('/inbox');
+    isVoiceActiveRoom ||
+    isCommunityChatRoom ||
+    isInkverseReader ||
+    location.pathname.startsWith('/inbox');
+
+  const handleHeaderSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = headerQuery.trim();
+    setSuggestionsOpen(false);
+    if (!q) {
+      navigate(location.pathname.startsWith('/inkverse') ? '/inkverse/browse' : '/search');
+      return;
+    }
+    navigate(`/search?q=${encodeURIComponent(q)}`);
+  };
+
+  const hasAnySuggestion =
+    suggestions.manga.length > 0 ||
+    suggestions.anime.length > 0 ||
+    suggestions.authors.length > 0 ||
+    suggestions.characters.length > 0;
 
   return (
     <div className="min-h-dvh bg-[#09080B] text-[#F5F1F2] flex flex-col">
-      {/* Top Navigation Header (Identical across Mobile, Tablet & Laptop/Desktop):
-          - Left side: Hamburger menu + Search icon
-          - Center: ONE KAGE logo + ONE "The Anime Universe" tagline centered relative to full screen width
-          - Right side: Notification bell + User profile avatar */}
+      {/* Top Navigation Header: preserves KAGE identity across Mobile, Tablet & Desktop while supporting INKVERSE live multi-entity search & quick actions */}
       <header
         className={`${
           hideTopBar ? 'hidden' : 'flex'
-        } sticky top-0 z-30 w-full h-14 sm:h-15 bg-[#09080B]/95 backdrop-blur-md border-b border-white/8 px-2.5 sm:px-6 items-center justify-between`}
+        } sticky top-0 z-30 w-full h-14 sm:h-16 bg-[#09080B]/88 backdrop-blur-xl border-b border-white/[0.07] px-3 sm:px-6 items-center justify-between gap-3`}
       >
-        {/* Left Side: Hamburger Menu + Search Icon */}
-        <div className="relative z-10 flex items-center gap-0.5 sm:gap-1.5 shrink-0">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-[#C0263D]/30 to-transparent"
+        />
+        {/* Left Side: Hamburger Menu + Mobile Search Button / Desktop KAGE Brand */}
+        <div className="relative z-10 flex items-center gap-1 sm:gap-2.5 shrink-0">
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
-            className="min-h-[44px] min-w-[42px] flex items-center justify-center rounded-xl text-[#F5F1F2] hover:bg-white/5 transition-colors cursor-pointer kage-press"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-[#F5F1F2] hover:bg-white/[0.06] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C0263D] kage-press"
             aria-label="Open navigation menu"
           >
             <Menu className="w-5 h-5" />
@@ -226,15 +307,23 @@ export const AppShell: React.FC<AppShellProps> = ({ children, onReplayIntro }) =
           <button
             type="button"
             onClick={() => navigate('/search')}
-            className="min-h-[44px] min-w-[42px] flex items-center justify-center rounded-xl text-[#F5F1F2]/90 hover:text-white hover:bg-white/5 transition-colors cursor-pointer kage-press"
-            aria-label="Search KAGE"
+            className="md:hidden min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-[#F5F1F2]/90 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C0263D] kage-press"
+            aria-label="Search anime, manga, characters"
           >
             <Search className="w-5 h-5" />
           </button>
+
+          <Link
+            to="/"
+            className="hidden md:inline-flex items-center whitespace-nowrap shrink-0 kage-press rounded-lg px-1 py-0.5"
+            aria-label="KAGE — The Anime Universe Home"
+          >
+            <KageLogo size="md" showSubtitle />
+          </Link>
         </div>
 
-        {/* Center: Single KAGE Logo + Single "The Anime Universe" Tagline (Centered Across Full Header Width) */}
-        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+        {/* Center: Mobile Centered KAGE Logo */}
+        <div className="md:hidden absolute inset-0 pointer-events-none flex items-center justify-center">
           <Link
             to="/"
             className="pointer-events-auto inline-flex items-center justify-center whitespace-nowrap shrink-0 kage-press rounded-lg px-1.5 py-0.5"
@@ -244,8 +333,219 @@ export const AppShell: React.FC<AppShellProps> = ({ children, onReplayIntro }) =
           </Link>
         </div>
 
-        {/* Right Side: Notification Bell + User Profile Avatar */}
-        <div className="relative z-10 flex items-center gap-0.5 sm:gap-1.5 shrink-0">
+        {/* Center Desktop Search Bar with Live Multi-Entity Autocomplete */}
+        <div ref={searchBoxRef} className="hidden md:block relative flex-1 max-w-lg mx-auto z-20">
+          <form onSubmit={handleHeaderSearchSubmit} className="relative">
+            <Search className="w-4 h-4 text-[#A7A0AA] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={headerQuery}
+              onFocus={() => setSuggestionsOpen(true)}
+              onChange={(e) => {
+                setHeaderQuery(e.target.value);
+                setSuggestionsOpen(true);
+              }}
+              placeholder="Search anime, manga, characters..."
+              aria-label="Search anime, manga, characters"
+              className="w-full h-10 rounded-xl bg-[#141116] border border-white/10 focus:border-[#C0263D] pl-10 pr-8 text-xs sm:text-sm text-[#F5F1F2] placeholder:text-[#A7A0AA]/75 focus:outline-none transition-colors"
+            />
+            {headerQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setHeaderQuery('');
+                  setSuggestions({ manga: [], anime: [], authors: [], characters: [] });
+                }}
+                aria-label="Clear header search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-[#A7A0AA] hover:text-white cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </form>
+
+          {suggestionsOpen && headerQuery.trim().length >= 2 && (
+            <div className="absolute left-0 right-0 top-12 rounded-2xl bg-[#141116] border border-white/12 shadow-[0_20px_50px_rgba(0,0,0,0.85)] overflow-hidden z-40">
+              {suggestionsLoading ? (
+                <div className="p-4 text-xs text-[#A7A0AA]">Searching KAGE &amp; INKVERSE...</div>
+              ) : !hasAnySuggestion ? (
+                <div className="p-4 text-xs text-[#A7A0AA] flex items-center justify-between">
+                  <span>No instant match. Press Enter for full search.</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSuggestionsOpen(false);
+                      navigate(`/search?q=${encodeURIComponent(headerQuery.trim())}`);
+                    }}
+                    className="text-[#C0263D] font-semibold cursor-pointer"
+                  >
+                    Search All →
+                  </button>
+                </div>
+              ) : (
+                <div className="max-h-[420px] overflow-y-auto divide-y divide-white/[0.06]">
+                  {suggestions.manga.length > 0 && (
+                    <div className="p-2.5 space-y-1">
+                      <p className="px-2 text-[10px] font-bold uppercase tracking-wider text-[#C0263D]">
+                        Manga · INKVERSE
+                      </p>
+                      {suggestions.manga.map((m) => (
+                        <button
+                          key={`m-${m.id}`}
+                          type="button"
+                          onClick={() => {
+                            setSuggestionsOpen(false);
+                            navigate(`/inkverse/manga/${m.id}`);
+                          }}
+                          className="w-full px-2 py-1.5 rounded-lg hover:bg-white/[0.06] flex items-center gap-2.5 text-left cursor-pointer"
+                        >
+                          <div className="w-8 h-11 rounded bg-[#09080B] overflow-hidden shrink-0">
+                            <KageImage
+                              strictArtwork
+                              src={m.coverImageUrl}
+                              alt={m.title}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-[#F5F1F2] truncate">{m.title}</p>
+                            <p className="text-[11px] text-[#A7A0AA] font-mono-num">
+                              {m.format}
+                              {m.releaseYear ? ` · ${m.releaseYear}` : ''}
+                              {m.score ? ` · ★ ${m.score}` : ''}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {suggestions.anime.length > 0 && (
+                    <div className="p-2.5 space-y-1">
+                      <p className="px-2 text-[10px] font-bold uppercase tracking-wider text-[#6D28D9]">
+                        Anime · Realms
+                      </p>
+                      {suggestions.anime.map((a) => (
+                        <button
+                          key={`a-${a.malId}`}
+                          type="button"
+                          onClick={() => {
+                            setSuggestionsOpen(false);
+                            navigate(`/anime/${a.malId}`);
+                          }}
+                          className="w-full px-2 py-1.5 rounded-lg hover:bg-white/[0.06] flex items-center gap-2.5 text-left cursor-pointer"
+                        >
+                          <div className="w-8 h-11 rounded bg-[#09080B] overflow-hidden shrink-0">
+                            <KageImage
+                              strictArtwork
+                              src={a.coverImageUrl}
+                              alt={a.title}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-[#F5F1F2] truncate">{a.title}</p>
+                            <p className="text-[11px] text-[#A7A0AA] font-mono-num">
+                              {a.format || 'Anime'}
+                              {a.releaseYear ? ` · ${a.releaseYear}` : ''}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {suggestions.authors.length > 0 && (
+                    <div className="p-2.5 space-y-1">
+                      <p className="px-2 text-[10px] font-bold uppercase tracking-wider text-[#A7A0AA]">
+                        Mangaka &amp; Authors
+                      </p>
+                      {suggestions.authors.map((au, idx) => (
+                        <button
+                          key={`au-${au.id}-${idx}`}
+                          type="button"
+                          onClick={() => {
+                            setSuggestionsOpen(false);
+                            navigate(`/inkverse/browse?q=${encodeURIComponent(au.name)}`);
+                          }}
+                          className="w-full px-2 py-1.5 rounded-lg hover:bg-white/[0.06] flex items-center justify-between text-left text-xs text-[#F5F1F2] cursor-pointer"
+                        >
+                          <span className="font-medium truncate">{au.name}</span>
+                          <span className="text-[11px] text-[#A7A0AA]">Browse works →</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {suggestions.characters.length > 0 && (
+                    <div className="p-2.5 space-y-1">
+                      <p className="px-2 text-[10px] font-bold uppercase tracking-wider text-[#A7A0AA]">
+                        Characters
+                      </p>
+                      {suggestions.characters.map((ch) => (
+                        <button
+                          key={`ch-${ch.id}`}
+                          type="button"
+                          onClick={() => {
+                            setSuggestionsOpen(false);
+                            if (ch.animeMalId) {
+                              navigate(`/anime/${ch.animeMalId}`);
+                            } else {
+                              navigate(`/search?q=${encodeURIComponent(ch.name)}`);
+                            }
+                          }}
+                          className="w-full px-2 py-1.5 rounded-lg hover:bg-white/[0.06] flex items-center gap-2.5 text-left cursor-pointer"
+                        >
+                          <div className="w-7 h-7 rounded-full bg-[#09080B] overflow-hidden shrink-0">
+                            <KageImage
+                              strictArtwork
+                              src={ch.avatarUrl}
+                              alt={ch.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-[#F5F1F2] truncate">{ch.name}</p>
+                            <p className="text-[11px] text-[#A7A0AA] truncate">{ch.animeTitle}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Right Side: Gamepad (Clash) + Crown (Top Rated) + Notification Bell + User Profile Avatar */}
+        <div className="relative z-10 flex items-center gap-0.5 sm:gap-1 shrink-0">
+          <button
+            type="button"
+            onClick={() => navigate('/clash')}
+            className="hidden sm:flex min-h-[44px] min-w-[40px] items-center justify-center rounded-xl text-[#F5F1F2]/85 hover:text-[#C0263D] hover:bg-white/[0.06] transition-colors cursor-pointer kage-press"
+            aria-label="Arena & Clash"
+            title="KAGE Clash Arena"
+          >
+            <Gamepad2 className="w-5 h-5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              navigate(
+                location.pathname.startsWith('/inkverse')
+                  ? '/inkverse/browse?sort=rating'
+                  : '/realms/genre/top-rated'
+              )
+            }
+            className="hidden sm:flex min-h-[44px] min-w-[40px] items-center justify-center rounded-xl text-[#F5F1F2]/85 hover:text-amber-400 hover:bg-white/[0.06] transition-colors cursor-pointer kage-press"
+            aria-label="Top Rated Rankings"
+            title="Top Rated Rankings"
+          >
+            <Crown className="w-5 h-5" />
+          </button>
+
           <button
             type="button"
             onClick={() => navigate(user ? '/notifications' : '/auth/login')}
@@ -466,6 +766,73 @@ export const AppShell: React.FC<AppShellProps> = ({ children, onReplayIntro }) =
                 </Link>
 
                 <Link
+                  to="/inkverse"
+                  onClick={() => setDrawerOpen(false)}
+                  className={`w-full min-h-[54px] px-2.5 py-2 rounded-xl flex items-center justify-between gap-3 transition-all kage-press ${
+                    location.pathname.startsWith('/inkverse')
+                      ? 'bg-[#141116] border border-[#C0263D]/60 shadow-[0_0_20px_rgba(192,38,61,0.22)]'
+                      : 'hover:bg-[#141116] border border-transparent hover:border-[#C0263D]/25'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div
+                      className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border ${
+                        location.pathname.startsWith('/inkverse')
+                          ? 'bg-[#C0263D]/20 border-[#C0263D]/60 shadow-[0_0_12px_rgba(192,38,61,0.3)]'
+                          : 'bg-[#141116] border-[#C0263D]/30'
+                      }`}
+                    >
+                      <BookOpen className="w-4 h-4 text-[#C0263D]" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-semibold text-[#F5F1F2] truncate">
+                          INKVERSE
+                        </p>
+                        <span className="px-1.5 py-0.5 rounded bg-[#C0263D] text-white text-[9px] font-bold tracking-wider uppercase shrink-0">
+                          NEW
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#A7A0AA] truncate">
+                        Discover manga, read chapters &amp; explore stories
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight
+                    className={`w-4 h-4 shrink-0 ${
+                      location.pathname.startsWith('/inkverse')
+                        ? 'text-[#C0263D]'
+                        : 'text-[#A7A0AA]/70'
+                    }`}
+                  />
+                </Link>
+
+                <Link
+                  to="/leaderboard"
+                  onClick={() => setDrawerOpen(false)}
+                  className={`w-full min-h-[52px] px-2.5 py-2 rounded-xl flex items-center justify-between gap-3 transition-colors kage-press ${
+                    location.pathname.startsWith('/leaderboard')
+                      ? 'bg-[#141116] border border-[#C0263D]/45 shadow-[0_0_18px_rgba(192,38,61,0.18)]'
+                      : 'hover:bg-[#141116]'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-lg bg-[#141116] border border-amber-400/30 flex items-center justify-center shrink-0">
+                      <Trophy className="w-4 h-4 text-amber-400" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[#F5F1F2] truncate">
+                        Global Leaderboard
+                      </p>
+                      <p className="text-[11px] text-[#A7A0AA] truncate">
+                        Top Clash hunters &amp; guild standings
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[#A7A0AA]/70 shrink-0" />
+                </Link>
+
+                <Link
                   to="/filters"
                   onClick={() => setDrawerOpen(false)}
                   className={`w-full min-h-[52px] px-2.5 py-2 rounded-xl flex items-center justify-between gap-3 transition-colors kage-press ${
@@ -653,21 +1020,25 @@ export const AppShell: React.FC<AppShellProps> = ({ children, onReplayIntro }) =
 
       {/* Main Content Container (Full Symmetric Width Across Mobile, Tablet & Laptop) */}
       <div
-        className={`flex-1 w-full max-w-7xl mx-auto flex ${
-          isCommunityProfile || isVoiceActiveRoom || isCommunityChatRoom
-            ? 'px-0 sm:px-6 pt-0 sm:pt-3'
-            : 'px-3 sm:px-6 pt-3'
-        } ${hideBottomNav ? 'pb-6' : 'pb-24'}`}
+        className={`flex-1 w-full ${
+          isInkverseReader ? 'max-w-none px-0 pt-0' : 'max-w-7xl mx-auto'
+        } flex ${
+          isInkverseReader
+            ? 'px-0 pt-0'
+            : isCommunityProfile || isVoiceActiveRoom || isCommunityChatRoom
+              ? 'px-0 sm:px-6 pt-0 sm:pt-3'
+              : 'px-3 sm:px-6 pt-3'
+        } ${hideBottomNav ? (isInkverseReader ? 'pb-0' : 'pb-6') : 'pb-24'}`}
       >
         <main key={location.pathname} className="flex-1 min-w-0 kage-page-enter">
           {children}
         </main>
       </div>
 
-      {/* Fixed Bottom Navigation Anchor — 4 Tabs: Realms / Pulse / Guilds / Clash (Consistent Across Mobile, Tablet & Laptop) */}
+      {/* Fixed Bottom Navigation Anchor — 4 Tabs: Realms / Pulse / Guilds / Clash */}
       {!hideBottomNav && (
         <nav
-          className="fixed bottom-0 left-0 right-0 z-30 bg-[#09080B]/95 backdrop-blur-md border-t border-white/8 grid grid-cols-4 items-center h-14 sm:h-15 pb-safe"
+          className="fixed bottom-0 left-0 right-0 z-30 bg-[#09080B]/90 backdrop-blur-xl border-t border-white/[0.08] grid grid-cols-4 items-center h-14 sm:h-16 pb-safe shadow-[0_-10px_30px_rgba(0,0,0,0.65)]"
           aria-label="Primary navigation"
         >
           {bottomTabs.map((tab) => {
@@ -679,8 +1050,8 @@ export const AppShell: React.FC<AppShellProps> = ({ children, onReplayIntro }) =
                 end={tab.to === '/'}
                 className={({ isActive }) => {
                   const active = tab.activeOverride || isActive;
-                  return `min-h-[48px] flex flex-col items-center justify-center gap-0.5 kage-press relative ${
-                    active ? 'text-[#F5F1F2]' : 'text-[#A7A0AA]'
+                  return `min-h-[48px] flex flex-col items-center justify-center gap-0.5 kage-press relative whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C0263D] ${
+                    active ? 'text-[#F5F1F2]' : 'text-[#A7A0AA] hover:text-[#D8D2DC]'
                   }`;
                 }}
               >
@@ -690,18 +1061,18 @@ export const AppShell: React.FC<AppShellProps> = ({ children, onReplayIntro }) =
                     <>
                       <Icon
                         className={`w-5 h-5 transition-transform duration-150 ${
-                          active ? 'text-[#C0263D] -translate-y-0.5' : 'text-[#A7A0AA]'
+                          active ? 'text-[#C0263D] -translate-y-0.5' : 'text-current'
                         }`}
                       />
                       <span
                         className={`text-[11px] font-semibold tracking-tight transition-colors ${
-                          active ? 'text-[#F5F1F2]' : 'text-[#A7A0AA]'
+                          active ? 'text-[#F5F1F2]' : 'text-current'
                         }`}
                       >
                         {tab.label}
                       </span>
                       {active && (
-                        <span className="absolute bottom-0.5 w-6 h-0.5 rounded-full bg-[#C0263D]" />
+                        <span className="absolute top-0 w-10 h-[2px] rounded-b-full bg-[#C0263D]" />
                       )}
                     </>
                   );

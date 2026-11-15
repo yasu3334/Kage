@@ -94,6 +94,7 @@ import {
   createFullClash,
   editOrCancelClash,
   getClashDetailById,
+  getGlobalClashAndCommunityLeaderboard,
   listClashesPaginated,
   listEligibleDuelRewardsForActor,
   respondToClashInvitation,
@@ -181,6 +182,35 @@ import {
   updateAiCommunityConfigAndSync,
   upgradeCommunityRealismAndEngagement,
 } from './src/db/aiCommunityRepo.ts';
+import {
+  getChapterPagesForReader,
+  getMangaDetailById,
+  getMangaRelationsForAnime,
+  isAllowedInkverseProxyHost,
+  searchMangaCatalog,
+  syncTrendingMangaCatalog,
+} from './src/server/inkverseCatalog.ts';
+import {
+  adminListInkverseModeration,
+  adminUpdateInkverseModeration,
+  createCreatorMangaSeries,
+  createMangaReview,
+  deleteCreatorMangaOrChapter,
+  deleteMangaReview,
+  getInkverseDashboard,
+  getInkverseSearchSuggestions,
+  getUserMangaEntry,
+  getUserMangaLibraryList,
+  incrementMangaReadCount,
+  listCreatorUploadedManga,
+  listMangaBookmarks,
+  listMangaReviews,
+  removeUserMangaEntry,
+  toggleMangaPageBookmark,
+  uploadCreatorMangaChapter,
+  upsertMangaReadingProgress,
+  upsertUserMangaEntry,
+} from './src/db/inkverseRepo.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -222,6 +252,7 @@ async function bootstrapDatabaseInBackground() {
       await ensureOwnerAndSeedData();
       await ensureAiCommunitySeededOnStartup();
       warmUpRealmsCatalogInBackground().catch(() => {});
+      syncTrendingMangaCatalog().catch(() => {});
       return;
     } catch (err: any) {
       const waitMs = Math.min(12000, attempt * 2500);
@@ -866,6 +897,12 @@ async function startServer() {
         recordRecentlyViewedAnime(req.user.uid, detail.anime).catch(() => {});
       }
 
+      const mangaRelations = await getMangaRelationsForAnime(
+        canonicalId,
+        detail.anime.malId,
+        detail.anime.title
+      ).catch(() => []);
+
       const viewerEntry =
         viewerState?.entries.find(
           (e) =>
@@ -885,10 +922,28 @@ async function startServer() {
         reviews: reviewBundle.reviews,
         kageReviewCount: reviewBundle.kageReviewCount,
         kageAverageScore: reviewBundle.kageAverageScore,
+        mangaRelations,
         viewerEntry,
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'Failed to load anime details.' });
+    }
+  });
+
+  app.get('/api/anime/:malId/manga', optionalAuth, async (req, res) => {
+    try {
+      const rawParam = String(req.params.malId || '').trim();
+      const parsedId = rawParam.startsWith('al-')
+        ? 10_000_000 + Number(rawParam.slice(3))
+        : Number(rawParam);
+      if (Number.isNaN(parsedId) || parsedId <= 0) {
+        res.status(400).json({ error: 'Invalid anime ID.' });
+        return;
+      }
+      const relations = await getMangaRelationsForAnime(parsedId, parsedId);
+      res.json({ items: relations });
+    } catch (err: any) {
+      sendRouteError(res, err, 'Failed to load related manga.', 500);
     }
   });
 
@@ -2243,6 +2298,19 @@ async function startServer() {
     }
   });
 
+  app.get('/api/leaderboard', optionalAuth, async (req: AuthRequest, res) => {
+    try {
+      const limit = req.query.limit ? Number(req.query.limit) : 30;
+      const data = await getGlobalClashAndCommunityLeaderboard({
+        limit,
+        viewerUid: req.user?.uid,
+      });
+      res.json(data);
+    } catch (err: any) {
+      sendRouteError(res, err, 'Failed to load global leaderboard.', 500);
+    }
+  });
+
   // --- CLASHES (USER DUEL, COMMUNITY DUEL WITH REWARDS, SOLO CHARACTER) ---
   app.get('/api/clashes', optionalAuth, async (req: AuthRequest, res) => {
     try {
@@ -2694,7 +2762,7 @@ async function startServer() {
       const shouldSearchAnime =
         !peopleResult.isExplicitPersonQuery && Boolean(q || hasAnimeFilters);
 
-      const [animeRes, guildsRes, postsRes, rooms] = await Promise.all([
+      const [animeRes, mangaRes, guildsRes, postsRes, rooms] = await Promise.all([
         shouldSearchAnime
           ? searchRealmsCatalog({
               q,
@@ -2712,6 +2780,29 @@ async function startServer() {
               pageInfo: {
                 currentPage: 1,
                 perPage: 24,
+                hasNextPage: false,
+                total: 0,
+              },
+            }),
+        shouldSearchAnime
+          ? searchMangaCatalog({
+              q,
+              genre,
+              year,
+              status,
+              minRating: minScore,
+              sort: sort === 'rating' ? 'rating' : sort === 'title' ? 'alphabetical' : 'popularity',
+              page,
+              perPage: 16,
+            }).catch(() => ({
+              items: [],
+              pageInfo: { currentPage: 1, perPage: 16, hasNextPage: false, total: 0 },
+            }))
+          : Promise.resolve({
+              items: [],
+              pageInfo: {
+                currentPage: 1,
+                perPage: 16,
                 hasNextPage: false,
                 total: 0,
               },
@@ -2736,6 +2827,8 @@ async function startServer() {
         isExplicitPersonQuery: peopleResult.isExplicitPersonQuery,
         anime: animeRes.items.map((item) => ({ ...item, malId: item.canonicalId })),
         animePageInfo: animeRes.pageInfo,
+        manga: mangaRes.items,
+        mangaPageInfo: mangaRes.pageInfo,
         people: peopleWithPresence,
         users: peopleWithPresence,
         communities: guildsRes.items,
@@ -2921,9 +3014,457 @@ async function startServer() {
           generateGeminiThreads: Boolean(req.body?.generateGeminiThreads),
           jobType: req.body?.generateGeminiThreads ? 'gemini_enrichment' : 'admin_sync',
         });
-        res.status(202).json(result);
+      res.status(202).json(result);
+    } catch (err: any) {
+      sendRouteError(res, err, 'Failed to trigger AI community seeding job.', 500);
+    }
+  });
+
+  // --- KAGE INKVERSE MANGA PLATFORM ENDPOINTS ---
+  app.get('/api/inkverse/dashboard', optionalAuth, async (req: AuthRequest, res) => {
+    try {
+      const payload = await getInkverseDashboard(req.user?.uid);
+      res.json(payload);
+    } catch (err: any) {
+      sendRouteError(res, err, 'Failed to load INKVERSE dashboard.', 500);
+    }
+  });
+
+  app.get('/api/inkverse/browse', optionalAuth, async (req: AuthRequest, res) => {
+    try {
+      const colorRaw = String(req.query.color || '').toLowerCase();
+      const color: 'color' | 'bw' | '' =
+        colorRaw === 'color' ? 'color' : colorRaw === 'bw' ? 'bw' : '';
+      const sortRaw = String(req.query.sort || 'popularity').toLowerCase();
+      const sort =
+        sortRaw === 'rating' ||
+        sortRaw === 'updated' ||
+        sortRaw === 'newest' ||
+        sortRaw === 'alphabetical' ||
+        sortRaw === 'trending'
+          ? sortRaw
+          : 'popularity';
+
+      const inAppOnly =
+        req.query.inAppOnly === '1' || req.query.inAppOnly === 'true';
+      const originalsOnly =
+        req.query.originalsOnly === '1' || req.query.originalsOnly === 'true';
+      const isAdmin =
+        req.user?.role === 'owner' || req.user?.role === 'admin';
+
+      const result = await searchMangaCatalog({
+        q: req.query.q ? String(req.query.q) : '',
+        genre: req.query.genre ? String(req.query.genre) : '',
+        status: req.query.status ? String(req.query.status) : '',
+        year: req.query.year ? Number(req.query.year) : undefined,
+        minRating: req.query.minRating ? Number(req.query.minRating) : undefined,
+        color,
+        language: req.query.language ? String(req.query.language) : '',
+        inAppOnly,
+        originalsOnly,
+        viewerUid: req.user?.uid,
+        isAdmin,
+        sort,
+        page: req.query.page ? Number(req.query.page) : 1,
+        perPage: req.query.perPage ? Number(req.query.perPage) : 20,
+      });
+      res.json(result);
+    } catch (err: any) {
+      sendRouteError(res, err, 'Failed to browse INKVERSE manga library.', 500);
+    }
+  });
+
+  app.get('/api/inkverse/suggestions', optionalAuth, async (req, res) => {
+    try {
+      const q = String(req.query.q || '');
+      const result = await getInkverseSearchSuggestions(q);
+      res.json(result);
+    } catch (err: any) {
+      sendRouteError(res, err, 'Failed to load search suggestions.', 500);
+    }
+  });
+
+  app.get('/api/inkverse/manga/:id', optionalAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id) || id <= 0) {
+        res.status(400).json({ error: 'Invalid manga ID.' });
+        return;
+      }
+
+      const isAdmin = req.user?.role === 'owner' || req.user?.role === 'admin';
+      const detail = await getMangaDetailById(id, req.user?.uid, isAdmin);
+      if (!detail) {
+        res.status(404).json({ error: 'Manga not found.' });
+        return;
+      }
+
+      const [reviewBundle, viewerState, bookmarks] = await Promise.all([
+        listMangaReviews(detail.manga.id, req.user?.uid),
+        req.user?.uid ? getUserMangaEntry(req.user.uid, detail.manga.id) : Promise.resolve(null),
+        req.user?.uid ? listMangaBookmarks(req.user.uid, detail.manga.id) : Promise.resolve([]),
+      ]);
+
+      res.json({
+        ...detail,
+        reviews: reviewBundle.reviews,
+        kageReviewCount: reviewBundle.kageReviewCount,
+        kageAverageScore: reviewBundle.kageAverageScore,
+        viewerEntry: viewerState?.entry || null,
+        viewerHistory: viewerState?.history || null,
+        viewerBookmarks: bookmarks,
+      });
+    } catch (err: any) {
+      sendRouteError(res, err, 'Failed to load manga details.', 500);
+    }
+  });
+
+  app.get('/api/inkverse/chapters/:chapterId/pages', optionalAuth, async (req: AuthRequest, res) => {
+    try {
+      const chapterId = Number(req.params.chapterId);
+      if (Number.isNaN(chapterId) || chapterId <= 0) {
+        res.status(400).json({ error: 'Invalid chapter ID.' });
+        return;
+      }
+
+      const isAdmin = req.user?.role === 'owner' || req.user?.role === 'admin';
+      const data = await getChapterPagesForReader(chapterId, req.user?.uid, isAdmin);
+      if (!data) {
+        res.status(404).json({ error: 'Chapter not found.' });
+        return;
+      }
+
+      const updatedReadCount = await incrementMangaReadCount(data.manga.id).catch(
+        () => data.manga.readCount
+      );
+
+      const bookmarks = req.user?.uid
+        ? await listMangaBookmarks(req.user.uid, data.manga.id)
+        : [];
+
+      res.json({
+        ...data,
+        manga: { ...data.manga, readCount: updatedReadCount },
+        bookmarks: bookmarks.filter((b) => b.chapterId === chapterId),
+      });
+    } catch (err: any) {
+      sendRouteError(res, err, 'Failed to load chapter pages.', 500);
+    }
+  });
+
+  app.get('/api/inkverse/image-proxy', async (req, res) => {
+    const rawUrl = String(req.query.url || '').trim();
+    if (!rawUrl || !(await isAllowedInkverseProxyHost(rawUrl))) {
+      res.status(403).json({ error: 'Disallowed image source host.' });
+      return;
+    }
+
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10_000);
+      const upstream = await fetch(rawUrl, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'KAGE-Inkverse/1.0',
+          Referer: 'https://mangadex.org/',
+        },
+      });
+      clearTimeout(timer);
+
+      if (!upstream.ok) {
+        res.status(upstream.status).end();
+        return;
+      }
+
+      const contentType = upstream.headers.get('content-type') || 'image/jpeg';
+      if (!contentType.startsWith('image/')) {
+        res.status(400).json({ error: 'Upstream response is not an image.' });
+        return;
+      }
+
+      const buf = Buffer.from(await upstream.arrayBuffer());
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.send(buf);
+    } catch {
+      res.status(502).end();
+    }
+  });
+
+  app.get('/api/inkverse/my-manga', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const tab = String(req.query.tab || 'all');
+      const result = await getUserMangaLibraryList(req.user!.uid, tab);
+      res.json(result);
+    } catch (err: any) {
+      sendRouteError(res, err, 'Failed to load your manga library.', 500);
+    }
+  });
+
+  app.post('/api/inkverse/my-manga', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const mangaId = Number(req.body?.mangaId);
+      if (!mangaId || Number.isNaN(mangaId)) {
+        res.status(400).json({ error: 'Valid mangaId is required.' });
+        return;
+      }
+      const entry = await upsertUserMangaEntry(req.user!.uid, {
+        mangaId,
+        status: req.body?.status,
+        isBookmarked: req.body?.isBookmarked,
+        personalScore: req.body?.personalScore,
+      });
+      res.json({ entry });
+    } catch (err: any) {
+      sendRouteError(res, err, 'Failed to update manga library.');
+    }
+  });
+
+  app.delete('/api/inkverse/my-manga/:mangaId', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const mangaId = Number(req.params.mangaId);
+      const result = await removeUserMangaEntry(req.user!.uid, mangaId);
+      res.json(result);
+    } catch (err: any) {
+      sendRouteError(res, err, 'Failed to remove manga from library.');
+    }
+  });
+
+  app.post('/api/inkverse/progress', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const mangaId = Number(req.body?.mangaId);
+      const chapterId = req.body?.chapterId ? Number(req.body.chapterId) : null;
+      const pageNumber = Number(req.body?.pageNumber || 1);
+      const totalPages = Number(req.body?.totalPages || 1);
+      const readingMode = req.body?.readingMode ? String(req.body.readingMode) : 'vertical';
+
+      if (!mangaId || Number.isNaN(mangaId)) {
+        res.status(400).json({ error: 'Valid mangaId is required.' });
+        return;
+      }
+
+      const saved = await upsertMangaReadingProgress(req.user!.uid, {
+        mangaId,
+        chapterId,
+        pageNumber,
+        totalPages,
+        readingMode,
+      });
+      res.json(saved);
+    } catch (err: any) {
+      sendRouteError(res, err, 'Failed to save reading progress.');
+    }
+  });
+
+  app.get('/api/inkverse/bookmarks', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const mangaId = req.query.mangaId ? Number(req.query.mangaId) : undefined;
+      const items = await listMangaBookmarks(req.user!.uid, mangaId);
+      res.json({ items });
+    } catch (err: any) {
+      sendRouteError(res, err, 'Failed to load bookmarks.', 500);
+    }
+  });
+
+  app.post('/api/inkverse/bookmarks', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const mangaId = Number(req.body?.mangaId);
+      const chapterId = Number(req.body?.chapterId);
+      const pageNumber = Number(req.body?.pageNumber || 1);
+      const chapterNumber = String(req.body?.chapterNumber || '1');
+      if (!mangaId || !chapterId) {
+        res.status(400).json({ error: 'mangaId and chapterId are required.' });
+        return;
+      }
+      const result = await toggleMangaPageBookmark(req.user!.uid, {
+        mangaId,
+        chapterId,
+        chapterNumber,
+        pageNumber,
+        note: req.body?.note ? String(req.body.note) : '',
+      });
+      res.json(result);
+    } catch (err: any) {
+      sendRouteError(res, err, 'Failed to toggle page bookmark.');
+    }
+  });
+
+  app.post('/api/inkverse/manga/:id/reviews', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const mangaId = Number(req.params.id);
+      const created = await createMangaReview(req.user!.uid, mangaId, {
+        rating: req.body?.rating !== undefined ? req.body.rating : null,
+        title: req.body?.title ? String(req.body.title) : undefined,
+        content: String(req.body?.content || ''),
+        containsSpoilers: Boolean(req.body?.containsSpoilers),
+      });
+      res.status(201).json({ review: created });
+    } catch (err: any) {
+      sendRouteError(res, err, 'Failed to publish manga review.');
+    }
+  });
+
+  app.delete('/api/inkverse/reviews/:reviewId', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const reviewId = Number(req.params.reviewId);
+      const result = await deleteMangaReview(req.user!.uid, reviewId);
+      res.json(result);
+    } catch (err: any) {
+      sendRouteError(res, err, 'Failed to delete review.');
+    }
+  });
+
+  // --- INKVERSE CREATOR STUDIO & ADMIN MODERATION ---
+  app.get('/api/inkverse/studio/my-uploads', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const isAdmin = req.user!.role === 'owner' || req.user!.role === 'admin';
+      const items = await listCreatorUploadedManga(req.user!.uid, isAdmin);
+      res.json({ items });
+    } catch (err: any) {
+      sendRouteError(res, err, 'Failed to load creator uploads.', 500);
+    }
+  });
+
+  app.post('/api/inkverse/studio/manga', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const isPrivileged = req.user!.role === 'owner' || req.user!.role === 'admin';
+      if (!isPrivileged && !checkRateLimit(`manga_series:${req.user!.uid}`, 5, 3_600_000)) {
+        res.status(429).json({
+          error: 'Upload limit reached: maximum 5 new manga series per hour. Try again shortly.',
+        });
+        return;
+      }
+
+      const body = req.body || {};
+      const manga = await createCreatorMangaSeries(req.user!.uid, req.user!.role || 'user', {
+        title: String(body.title || ''),
+        altTitles: Array.isArray(body.altTitles) ? body.altTitles : [],
+        synopsis: String(body.synopsis || ''),
+        authorName: body.authorName ? String(body.authorName) : undefined,
+        artistName: body.artistName ? String(body.artistName) : undefined,
+        format: body.format ? String(body.format) : 'MANGA',
+        status: body.status ? String(body.status) : 'RELEASING',
+        releaseYear: body.releaseYear ? Number(body.releaseYear) : null,
+        isColor: Boolean(body.isColor),
+        originalLanguage: body.originalLanguage ? String(body.originalLanguage) : 'en',
+        genres: Array.isArray(body.genres) ? body.genres : [],
+        coverDataUrl: String(body.coverDataUrl || ''),
+        rightsDeclared: Boolean(body.rightsDeclared),
+      });
+
+      res.status(201).json({ manga });
+    } catch (err: any) {
+      sendRouteError(res, err, 'Failed to publish manga series.');
+    }
+  });
+
+  app.post('/api/inkverse/studio/manga/:mangaId/chapters', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const mangaId = Number(req.params.mangaId);
+      if (!mangaId || Number.isNaN(mangaId)) {
+        res.status(400).json({ error: 'Valid mangaId is required.' });
+        return;
+      }
+
+      const isPrivileged = req.user!.role === 'owner' || req.user!.role === 'admin';
+      if (!isPrivileged && !checkRateLimit(`manga_chapter:${req.user!.uid}`, 20, 3_600_000)) {
+        res.status(429).json({
+          error: 'Upload limit reached: maximum 20 chapters per hour. Try again shortly.',
+        });
+        return;
+      }
+
+      const body = req.body || {};
+      const result = await uploadCreatorMangaChapter(
+        req.user!.uid,
+        req.user!.role || 'user',
+        mangaId,
+        {
+          chapterNumber: String(body.chapterNumber || ''),
+          volumeNumber: body.volumeNumber ? String(body.volumeNumber) : null,
+          title: body.title ? String(body.title) : '',
+          language: body.language ? String(body.language) : 'en',
+          isColor: body.isColor !== undefined ? Boolean(body.isColor) : undefined,
+          rightsDeclared: Boolean(body.rightsDeclared),
+          pagesDataUrls: Array.isArray(body.pagesDataUrls) ? body.pagesDataUrls : [],
+        }
+      );
+
+      res.status(201).json(result);
+    } catch (err: any) {
+      sendRouteError(res, err, 'Failed to publish manga chapter.');
+    }
+  });
+
+  app.delete('/api/inkverse/studio/manga/:mangaId', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const mangaId = Number(req.params.mangaId);
+      const result = await deleteCreatorMangaOrChapter(
+        req.user!.uid,
+        req.user!.role || 'user',
+        'manga',
+        mangaId
+      );
+      res.json(result);
+    } catch (err: any) {
+      sendRouteError(res, err, 'Failed to delete manga series.');
+    }
+  });
+
+  app.delete('/api/inkverse/studio/chapters/:chapterId', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const chapterId = Number(req.params.chapterId);
+      const result = await deleteCreatorMangaOrChapter(
+        req.user!.uid,
+        req.user!.role || 'user',
+        'chapter',
+        chapterId
+      );
+      res.json(result);
+    } catch (err: any) {
+      sendRouteError(res, err, 'Failed to delete chapter.');
+    }
+  });
+
+  app.get(
+    '/api/admin/inkverse/moderation',
+    requireAuth,
+    requireAdminOrOwner,
+    async (req: AuthRequest, res) => {
+      try {
+        const statusFilter = req.query.status ? String(req.query.status) : 'all';
+        const data = await adminListInkverseModeration(statusFilter);
+        res.json(data);
       } catch (err: any) {
-        sendRouteError(res, err, 'Failed to trigger AI community seeding job.', 500);
+        sendRouteError(res, err, 'Failed to load INKVERSE moderation queue.', 500);
+      }
+    }
+  );
+
+  app.patch(
+    '/api/admin/inkverse/moderation',
+    requireAuth,
+    requireAdminOrOwner,
+    async (req: AuthRequest, res) => {
+      try {
+        const type = req.body?.type === 'chapter' ? 'chapter' : 'manga';
+        const id = Number(req.body?.id);
+        const statusRaw = String(req.body?.status || 'approved');
+        const status =
+          statusRaw === 'rejected'
+            ? 'rejected'
+            : statusRaw === 'pending_review'
+              ? 'pending_review'
+              : 'approved';
+        const note = req.body?.note ? String(req.body.note) : '';
+        if (!id || Number.isNaN(id)) {
+          res.status(400).json({ error: 'Valid id is required.' });
+          return;
+        }
+        const result = await adminUpdateInkverseModeration({ type, id, status, note });
+        res.json(result);
+      } catch (err: any) {
+        sendRouteError(res, err, 'Failed to update INKVERSE moderation status.');
       }
     }
   );
@@ -2948,7 +3489,13 @@ async function startServer() {
     });
   }
 
-  const PORT = Number(process.env.PORT || 3000);
+  const portFlagIdx = process.argv.indexOf('--port');
+  const cliPort =
+    portFlagIdx !== -1 && process.argv[portFlagIdx + 1]
+      ? Number(process.argv[portFlagIdx + 1])
+      : NaN;
+  const PORT =
+    Number.isFinite(cliPort) && cliPort > 0 ? cliPort : Number(process.env.PORT || 3000);
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`KAGE server running on http://0.0.0.0:${PORT}`);
     bootstrapDatabaseInBackground().catch((e) =>

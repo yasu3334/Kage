@@ -1060,7 +1060,7 @@ async function hydratePostsBatch(
     new Set(rawRows.map((r) => r.discussion.quoteOfPostId).filter(Boolean) as number[])
   );
 
-  const [reactionRows, savedRows, repostRows, pollVoteRows, quotedRows] = await Promise.all([
+  const [reactionRows, savedRows, repostRows, pollVoteRows, quotedRows, followRows] = await Promise.all([
     viewerUid
       ? db
           .select()
@@ -1110,6 +1110,17 @@ async function hydratePostsBatch(
           .innerJoin(profiles, eq(users.uid, profiles.userUid))
           .where(inArray(discussions.id, quoteIds))
       : Promise.resolve([]),
+    viewerUid
+      ? db
+          .select({ followingUid: userFollows.followingUid })
+          .from(userFollows)
+          .where(
+            and(
+              eq(userFollows.followerUid, viewerUid),
+              inArray(userFollows.followingUid, rawRows.map((r) => r.discussion.authorUid))
+            )
+          )
+      : Promise.resolve([]),
   ]);
 
   const likedSet = new Set(
@@ -1125,6 +1136,7 @@ async function hydratePostsBatch(
   ]);
   const pollVoteMap = new Map(pollVoteRows.map((pv) => [pv.discussionId, pv.optionId]));
   const quoteMap = new Map(quotedRows.map((q) => [q.discussion.id, q]));
+  const followingAuthorSet = new Set(followRows.map((f: any) => f.followingUid));
 
   return rawRows.map((r) => {
     const d = r.discussion;
@@ -1207,6 +1219,7 @@ async function hydratePostsBatch(
       viewerBookmarked: savedSet.has(d.id),
       viewerSaved: savedSet.has(d.id),
       viewerReposted: repostedSet.has(d.id),
+      viewerFollowingAuthor: followingAuthorSet.has(d.authorUid),
     };
   });
 }

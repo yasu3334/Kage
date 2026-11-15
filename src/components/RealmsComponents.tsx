@@ -168,9 +168,9 @@ export const AnimePosterCard: React.FC<{
   return (
     <Link
       to={`/anime/${routeId}`}
-      className={`group block space-y-1.5 kage-press focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C0263D] rounded-xl ${className}`}
+      className={`group block space-y-2 kage-press focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C0263D] rounded-xl ${className}`}
     >
-      <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-[#141116] border border-white/8 group-hover:border-[#C0263D]/55 group-hover:-translate-y-0.5 transition-all duration-150">
+      <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-[#141116] border border-white/[0.08] group-hover:border-[#C0263D]/60 group-hover:-translate-y-1 group-hover:shadow-[0_14px_30px_rgba(0,0,0,0.72)] transition-all duration-150">
         <KageImage
           strictArtwork
           src={anime.imageUrl}
@@ -204,9 +204,9 @@ export const AnimePosterCard: React.FC<{
           </button>
         )}
 
-        <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-[#09080B]/95 via-[#09080B]/35 to-transparent pointer-events-none" />
+        <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#09080B]/95 via-[#09080B]/45 to-transparent pointer-events-none" />
         {scoreValue && (
-          <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between text-[11px] font-mono-num text-[#F5F1F2] pointer-events-none">
+          <div className="absolute bottom-2 left-2.5 right-2.5 flex items-center justify-between text-[11px] font-mono-num text-[#F5F1F2] pointer-events-none">
             <span className="inline-flex items-center gap-1 drop-shadow">
               <Star className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" />
               <span className="font-semibold">{scoreValue}</span>
@@ -216,7 +216,7 @@ export const AnimePosterCard: React.FC<{
       </div>
 
       <div className="px-0.5 space-y-0.5">
-        <h4 className="text-xs sm:text-[13px] font-semibold text-[#F5F1F2] group-hover:text-[#C0263D] line-clamp-1 transition-colors leading-snug">
+        <h4 className="text-xs sm:text-[13px] font-semibold text-[#F5F1F2] group-hover:text-white line-clamp-1 transition-colors leading-snug">
           {anime.title}
         </h4>
         {secondaryTitle && (
@@ -690,7 +690,7 @@ export const PopularNowBanner: React.FC<{
             }
           }
         }}
-        className="group/hero relative rounded-2xl overflow-hidden bg-[#141116] border border-white/10 min-h-[225px] sm:min-h-[305px] lg:min-h-[355px] flex items-end select-none"
+        className="group/hero relative rounded-2xl sm:rounded-3xl overflow-hidden bg-[#141116] border border-white/[0.09] shadow-[0_24px_64px_rgba(0,0,0,0.72)] min-h-[250px] sm:min-h-[340px] lg:min-h-[420px] flex items-end select-none"
       >
         <KageImage
           key={String(routeId)}
@@ -699,11 +699,11 @@ export const PopularNowBanner: React.FC<{
           src={bannerSrc}
           alt={current.title}
           fallbackLabel={current.title}
-          className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-300 group-hover/hero:scale-[1.015]"
+          className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-500 group-hover/hero:scale-[1.018]"
         />
         {/* Measured multi-stop dark scrim for WCAG legibility */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#09080B] via-[#09080B]/55 to-black/15" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#09080B]/88 via-[#09080B]/30 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#09080B] via-[#09080B]/58 to-black/15" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#09080B]/92 via-[#09080B]/40 to-transparent" />
 
         {/* Desktop Prev / Next Slide Arrows on Hover */}
         {slides.length > 1 && (
@@ -712,7 +712,7 @@ export const PopularNowBanner: React.FC<{
               type="button"
               onClick={goPrevSlide}
               aria-label="Previous featured anime"
-              className="hidden md:flex absolute left-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-[#09080B]/70 hover:bg-[#09080B] border border-white/15 text-[#F5F1F2] items-center justify-center opacity-0 group-hover/hero:opacity-100 transition-opacity cursor-pointer kage-press"
+              className="hidden md:flex absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-[#09080B]/75 hover:bg-[#09080B] border border-white/15 text-[#F5F1F2] items-center justify-center opacity-0 group-hover/hero:opacity-100 transition-opacity cursor-pointer kage-press"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -720,7 +720,7 @@ export const PopularNowBanner: React.FC<{
               type="button"
               onClick={goNextSlide}
               aria-label="Next featured anime"
-              className="hidden md:flex absolute right-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-[#09080B]/70 hover:bg-[#09080B] border border-white/15 text-[#F5F1F2] items-center justify-center opacity-0 group-hover/hero:opacity-100 transition-opacity cursor-pointer kage-press"
+              className="hidden md:flex absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-[#09080B]/75 hover:bg-[#09080B] border border-white/15 text-[#F5F1F2] items-center justify-center opacity-0 group-hover/hero:opacity-100 transition-opacity cursor-pointer kage-press"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -729,19 +729,22 @@ export const PopularNowBanner: React.FC<{
 
         <div
           key={`caption-${routeId}`}
-          className="relative z-10 w-full p-4 sm:p-6 lg:p-8 flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:gap-5 kage-page-enter"
+          className="relative z-10 w-full p-4 sm:p-7 lg:p-9 flex flex-col sm:flex-row sm:items-end justify-between gap-4 sm:gap-6 kage-page-enter"
         >
-          <div className="space-y-1 max-w-2xl min-w-0">
+          <div className="space-y-1.5 max-w-2xl min-w-0">
             <Link to={`/anime/${routeId}`} className="group inline-block max-w-full">
-              <h1 className="text-lg sm:text-3xl lg:text-4xl font-bold text-[#F5F1F2] group-hover:text-white tracking-tight leading-tight line-clamp-2">
+              <h1
+                className="text-xl sm:text-3xl lg:text-[2.5rem] font-bold text-[#F5F1F2] group-hover:text-white tracking-tight leading-[1.12] line-clamp-2"
+                style={{ textWrap: 'balance' }}
+              >
                 {current.title}{' '}
                 {current.year ? (
-                  <span className="font-normal text-[#F5F1F2]/85">({current.year})</span>
+                  <span className="font-normal text-[#F5F1F2]/75">({current.year})</span>
                 ) : null}
               </h1>
             </Link>
 
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm text-[#A7A0AA] font-mono-num">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm text-[#D8D2DC]/85 font-mono-num">
               {metaItems.map((m) => (
                 <span key={m} className="whitespace-nowrap">
                   {m}
@@ -759,7 +762,7 @@ export const PopularNowBanner: React.FC<{
                 </span>
               )}
               {current.genres && current.genres.length > 0 && (
-                <span className="hidden md:inline font-sans text-[#F5F1F2]/80">
+                <span className="hidden md:inline font-sans text-[#D8D2DC]/80">
                   · {current.genres.slice(0, 3).join(' · ')}
                 </span>
               )}

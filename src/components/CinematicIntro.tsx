@@ -1,11 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Play, RotateCcw, SkipForward, Volume2, VolumeX } from 'lucide-react';
+import { ArrowRight, Play, RotateCcw, Volume2, VolumeX } from 'lucide-react';
 import { KAGE_LOGO_URL } from '../lib/assets';
 import { kageSound } from '../lib/soundEngine';
 import {
   DEFAULT_KAGE_FINAL_LOGO_HD,
   DEFAULT_KAGE_INTRO_MP4,
-  DEFAULT_KAGE_INTRO_POSTER,
   DEFAULT_KAGE_INTRO_WEBM,
   SplashVideoConfig,
   fetchSplashVideoConfig,
@@ -25,26 +24,11 @@ interface CinematicIntroProps {
 
 /**
  * KAGE — THE ANIME UNIVERSE
- * Premium, Responsive Full-HD (1920×1080) Website Opening Screen
+ * Full-HD (1920×1080) Theater-Grade Opening Screen
  *
- * Preserves the exact 10-step watermark-free animation sequence:
- *  1. Zenitsu appears first.
- *  2. He runs toward the camera.
- *  3. He prepares and performs Thunder Breathing.
- *  4. The golden lightning attack explodes.
- *  5. The KAGE logo appears.
- *  6. Zenitsu becomes smaller.
- *  7. He runs toward the letter K.
- *  8. He jumps and climbs onto the K.
- *  9. He sits on top of the K.
- * 10. The final complete KAGE logo remains visible.
- *
- * Responsive & Performance Guarantees:
- * - Full-screen #09080B obsidian canvas across desktop, laptop, tablet, iOS & Android (portrait & landscape)
- * - `object-fit: contain` so Zenitsu, KAGE lettering, #C0263D underline, and THE ANIME UNIVERSE subtitle are NEVER cropped or stretched
- * - H.264 MP4 + VP9 WebM sources with `preload="metadata"`, `playsInline`, and 1920×1080 poster frame
- * - Smart browser autoplay compliance (attempts unmuted when allowed, seamlessly falls back to muted with one-tap Unmute toggle)
- * - Respects `prefers-reduced-motion` and provides resilient brand fallback if video playback fails
+ * Plays the authoritative watermark-free KAGE Zenitsu animation (/assets/kage-intro.mp4 & .webm)
+ * on a seamless #09080B obsidian canvas with smooth fade-in on ready, authentic audio track
+ * playback, subtle edge vignette integration, and unobtrusive bottom-corner glass controls.
  */
 export const CinematicIntro: React.FC<CinematicIntroProps> = ({
   onComplete,
@@ -66,7 +50,9 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({
 
   const [forcePlayOverride, setForcePlayOverride] = useState(false);
   const [isMuted, setIsMuted] = useState<boolean>(() => !kageSound.isSplashAudioAllowed());
+  const [videoReady, setVideoReady] = useState(false);
   const [videoStarted, setVideoStarted] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(false);
   const [autoplayBlockedCompletely, setAutoplayBlockedCompletely] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
   const [fallbackImgError, setFallbackImgError] = useState(false);
@@ -74,13 +60,14 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({
   const [exiting, setExiting] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const videoStartedRef = useRef(false);
   const finishedRef = useRef(false);
   const exitTimerRef = useRef<number | null>(null);
   const watchdogTimerRef = useRef<number | null>(null);
 
   const isReducedStaticMode = shouldUseStaticReducedMotion && !forcePlayOverride;
 
-  // Lock background page scroll while full-screen opening screen is active
+  // Lock background scroll while full-viewport theater intro is active
   useEffect(() => {
     const prevHtmlOverflow = document.documentElement.style.overflow;
     const prevBodyOverflow = document.body.style.overflow;
@@ -92,17 +79,21 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({
     };
   }, []);
 
+  // Reveal subtle corner controls cleanly after initial obsidian settle
+  useEffect(() => {
+    const timer = window.setTimeout(() => setControlsVisible(true), 280);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   // Resolve latest splash config once per session
   useEffect(() => {
     let cancelled = false;
     fetchSplashVideoConfig()
       .then((resolved) => {
-        if (!cancelled) {
-          setConfig(resolved);
-        }
+        if (!cancelled) setConfig(resolved);
       })
       .catch(() => {
-        // Uses bundled KAGE intro defaults cleanly
+        // Bundled KAGE intro defaults remain active
       });
     return () => {
       cancelled = true;
@@ -126,7 +117,7 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({
     try {
       vid.pause();
     } catch {
-      // ignore media pause errors
+      // ignore pause errors
     }
   }, []);
 
@@ -141,7 +132,7 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({
         setExiting(true);
         window.setTimeout(() => {
           onComplete({ skipped: true });
-        }, 220);
+        }, 200);
         return;
       }
 
@@ -150,12 +141,12 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({
       exitTimerRef.current = window.setTimeout(() => {
         releaseVideoElement();
         onComplete({ skipped: false });
-      }, 520);
+      }, 480);
     },
     [clearTimers, onComplete, releaseVideoElement]
   );
 
-  // Build ordered MP4 + WebM source list for maximum cross-browser compatibility (Safari/iOS H.264 + Chrome/Firefox VP9)
+  // Ordered H.264 MP4 + VP9 WebM source list for maximum cross-device compatibility
   const videoSources = useMemo(() => {
     const list: { src: string; type: string }[] = [];
     const addUnique = (src?: string | null, type?: string | null) => {
@@ -174,10 +165,15 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({
     return list;
   }, [config.fallbackMimeType, config.fallbackVideoUrl, config.mimeType, config.videoUrl]);
 
-  const posterUrl = config.posterUrl || DEFAULT_KAGE_INTRO_POSTER;
   const fallbackHdLogoUrl = config.fallbackLogoUrl || DEFAULT_KAGE_FINAL_LOGO_HD;
 
-  // Attempt automatic playback on mount / source update
+  const getPreferredVideoVolume = useCallback(() => {
+    const prefVol = (kageSound.getPreferences().soundVolume ?? 35) / 100;
+    // Ensure authentic cinematic intro sound stays rich even when UI click volume is moderate
+    return Math.max(0.55, Math.min(1, Math.max(prefVol * 1.6, 0.78)));
+  }, []);
+
+  // Attempt automatic playback on mount / replay without re-triggering on play state changes
   const startPlayback = useCallback(
     async (preferUnmuted?: boolean) => {
       const vid = videoRef.current;
@@ -185,40 +181,37 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({
 
       const allowSound =
         preferUnmuted !== undefined ? preferUnmuted : kageSound.isSplashAudioAllowed();
-      const targetVol = Math.max(
-        0.15,
-        Math.min(1, (kageSound.getPreferences().soundVolume || 72) / 100)
-      );
-      vid.volume = targetVol;
 
       if (allowSound) {
         try {
           vid.muted = false;
+          vid.volume = getPreferredVideoVolume();
           await vid.play();
+          videoStartedRef.current = true;
           setIsMuted(false);
           setVideoStarted(true);
           setAutoplayBlockedCompletely(false);
           return;
         } catch {
-          // Browser blocked autoplay with sound — fall back immediately to smooth muted autoplay
+          // Browser autoplay policy requires user gesture before unmuted audio plays
         }
       }
 
       try {
         vid.muted = true;
         await vid.play();
+        videoStartedRef.current = true;
         setIsMuted(true);
         setVideoStarted(true);
         setAutoplayBlockedCompletely(false);
       } catch {
-        // Strict power-saver / browser autoplay restriction blocked even muted play
         setAutoplayBlockedCompletely(true);
       }
     },
-    []
+    [getPreferredVideoVolume]
   );
 
-  // Reduced-motion calm entrance: show crisp static KAGE brand lockup and transition smoothly
+  // Reduced-motion entrance: crisp HD brand reveal then transition to homepage
   useEffect(() => {
     if (!isReducedStaticMode) return;
     finishedRef.current = false;
@@ -231,7 +224,7 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({
     };
   }, [finishIntro, isReducedStaticMode]);
 
-  // Standard video lifecycle + stall/error watchdog so visitors never get stuck on the intro screen
+  // Standard video playback lifecycle (never re-runs on videoStarted change)
   useEffect(() => {
     if (isReducedStaticMode) return;
     finishedRef.current = false;
@@ -239,28 +232,31 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({
     if (videoFailed) {
       const fallbackHold = window.setTimeout(() => {
         finishIntro(false);
-      }, 2600);
+      }, 2400);
       exitTimerRef.current = fallbackHold;
       return () => window.clearTimeout(fallbackHold);
     }
 
     void startPlayback();
 
-    // Watchdog: if video fails to begin advancing within 5.5s (e.g. network stall or Low Power block), ensure graceful progression
     watchdogTimerRef.current = window.setTimeout(() => {
       const vid = videoRef.current;
-      if (!finishedRef.current && (!vid || vid.currentTime < 0.05) && !videoStarted) {
+      if (
+        !finishedRef.current &&
+        !videoStartedRef.current &&
+        (!vid || (vid.readyState < 2 && vid.currentTime < 0.05))
+      ) {
         setVideoFailed(true);
         logMissingSplashAssetForDeveloper('playback startup timeout');
       }
-    }, 5500);
+    }, 15000);
 
     return () => {
       clearTimers();
     };
-  }, [clearTimers, finishIntro, isReducedStaticMode, startPlayback, videoFailed, videoStarted]);
+  }, [clearTimers, finishIntro, isReducedStaticMode, startPlayback, videoFailed]);
 
-  // Pause cleanly when browser tab is hidden and resume when visible
+  // Pause cleanly when browser tab is hidden and resume when active
   useEffect(() => {
     const onVisibility = () => {
       const vid = videoRef.current;
@@ -275,29 +271,30 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, [isReducedStaticMode, videoFailed]);
 
-  const handleToggleMute = useCallback((e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    const vid = videoRef.current;
-    if (!vid) return;
-    const nextMuted = !vid.muted;
-    vid.muted = nextMuted;
-    if (!nextMuted) {
-      vid.volume = Math.max(
-        0.2,
-        Math.min(1, (kageSound.getPreferences().soundVolume || 75) / 100)
-      );
-      if (vid.paused) {
-        vid.play().catch(() => {});
+  const handleToggleMute = useCallback(
+    (e?: React.MouseEvent) => {
+      e?.stopPropagation();
+      const vid = videoRef.current;
+      if (!vid) return;
+      const nextMuted = !vid.muted;
+      vid.muted = nextMuted;
+      if (!nextMuted) {
+        vid.volume = getPreferredVideoVolume();
+        if (vid.paused) {
+          vid.play().catch(() => {});
+        }
       }
-    }
-    setIsMuted(nextMuted);
-  }, []);
+      setIsMuted(nextMuted);
+    },
+    [getPreferredVideoVolume]
+  );
 
   const handleReplay = useCallback(
     (e?: React.MouseEvent) => {
       e?.stopPropagation();
       clearTimers();
       finishedRef.current = false;
+      videoStartedRef.current = false;
       setExiting(false);
       setProgressRatio(0);
       setAutoplayBlockedCompletely(false);
@@ -317,7 +314,7 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({
         try {
           vid.currentTime = Number(config.startOffsetSec || 0);
         } catch {
-          // ignore seek error before metadata
+          // ignore early seek error
         }
         void startPlayback(true);
       }
@@ -333,7 +330,7 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({
     [finishIntro]
   );
 
-  // Keyboard shortcuts: Escape = Skip Intro, M = Mute/Unmute, R = Replay
+  // Keyboard shortcuts: Escape = Skip, M = Mute/Unmute, R = Replay
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -366,10 +363,7 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({
           void startPlayback(true);
         } else if (vid.muted) {
           vid.muted = false;
-          vid.volume = Math.max(
-            0.35,
-            Math.min(1, (kageSound.getPreferences().soundVolume || 80) / 100)
-          );
+          vid.volume = getPreferredVideoVolume();
           setIsMuted(false);
         }
       }}
@@ -377,85 +371,96 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({
         exiting ? 'opacity-0 scale-[1.015] pointer-events-none' : 'opacity-100 scale-100'
       }`}
     >
-      {/* Full-Screen Responsive Video / Brand Stage (#09080B deep black, object-fit: contain — zero cropping, zero stretching) */}
-      {!showStaticBrandFallback ? (
-        <div className="relative w-full h-full flex items-center justify-center bg-[#09080B]">
-          <video
-            ref={videoRef}
-            poster={posterUrl}
-            preload="metadata"
-            playsInline
-            muted={isMuted}
-            disablePictureInPicture
-            controls={false}
-            onLoadedMetadata={(e) => {
-              const vid = e.currentTarget;
-              const offset = Number(config.startOffsetSec || 0);
-              if (offset > 0 && (!Number.isFinite(vid.duration) || vid.duration > offset + 3)) {
-                try {
-                  vid.currentTime = offset;
-                } catch {
-                  // ignore early seek errors
-                }
-              }
-            }}
-            onPlay={() => {
-              setVideoStarted(true);
-              setAutoplayBlockedCompletely(false);
-            }}
-            onTimeUpdate={(e) => {
-              const vid = e.currentTarget;
-              if (Number.isFinite(vid.duration) && vid.duration > 0) {
-                setProgressRatio(Math.min(1, Math.max(0, vid.currentTime / vid.duration)));
-              }
-            }}
-            onEnded={() => {
-              finishIntro(false);
-            }}
-            onError={() => {
-              setVideoFailed(true);
-              logMissingSplashAssetForDeveloper('HTML5 video element failed across all sources');
-            }}
-            className="w-full h-full max-w-full max-h-full object-contain bg-[#09080B] block select-none pointer-events-none"
-          >
-            {videoSources.map((source) => (
-              <source key={source.src} src={source.src} type={source.type} />
-            ))}
-          </video>
+      {/* Subtle Ambient Theater Backdrop Blending 16:9 Stage Edges Into Obsidian Canvas */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(109,40,217,0.08)_0%,rgba(192,38,61,0.04)_38%,rgba(9,8,11,1)_78%)]"
+      />
 
-          {/* Optional Tap-to-Play prompt ONLY if strict mobile Low-Power mode blocks even muted autoplay */}
+      {!showStaticBrandFallback ? (
+        <div className="relative w-full h-full flex items-center justify-center">
+          <div className="relative w-full h-full max-w-[1920px] flex items-center justify-center">
+            <video
+              ref={videoRef}
+              autoPlay
+              preload="auto"
+              playsInline
+              muted={isMuted}
+              disablePictureInPicture
+              controls={false}
+              onLoadedMetadata={(e) => {
+                const vid = e.currentTarget;
+                const offset = Number(config.startOffsetSec || 0);
+                if (offset > 0 && (!Number.isFinite(vid.duration) || vid.duration > offset + 3)) {
+                  try {
+                    vid.currentTime = offset;
+                  } catch {
+                    // ignore early seek errors
+                  }
+                }
+              }}
+              onLoadedData={() => {
+                setVideoReady(true);
+              }}
+              onPlaying={() => {
+                setVideoReady(true);
+                videoStartedRef.current = true;
+                setVideoStarted(true);
+                setAutoplayBlockedCompletely(false);
+              }}
+              onPlay={() => {
+                videoStartedRef.current = true;
+                setVideoStarted(true);
+                setAutoplayBlockedCompletely(false);
+              }}
+              onTimeUpdate={(e) => {
+                const vid = e.currentTarget;
+                if (Number.isFinite(vid.duration) && vid.duration > 0) {
+                  setProgressRatio(Math.min(1, Math.max(0, vid.currentTime / vid.duration)));
+                }
+              }}
+              onEnded={() => {
+                finishIntro(false);
+              }}
+              onError={() => {
+                setVideoFailed(true);
+                logMissingSplashAssetForDeveloper('HTML5 video element failed across all sources');
+              }}
+              className={`w-full h-full max-w-full max-h-full object-contain bg-transparent block select-none pointer-events-none transition-opacity duration-300 ${
+                videoReady || videoStarted ? 'opacity-100' : 'opacity-0'
+              }`}
+            >
+              {videoSources.map((source) => (
+                <source key={source.src} src={source.src} type={source.type} />
+              ))}
+            </video>
+
+            {/* Soft top & bottom gradient scrims so controls never clash with lightning or subtitle frames */}
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#09080B]/85 via-[#09080B]/25 to-transparent"
+            />
+          </div>
+
+          {/* Only shown if device Low-Power Mode completely blocks autoplay */}
           {autoplayBlockedCompletely && (
-            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#09080B]/70 backdrop-blur-xs px-6 text-center">
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#09080B]/80 backdrop-blur-xs px-6 text-center">
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   void startPlayback(true);
                 }}
-                className="min-h-[48px] px-6 py-3 rounded-xl bg-[#C0263D] hover:bg-[#d42b44] text-white text-sm font-semibold tracking-wide flex items-center gap-2.5 shadow-[0_12px_32px_rgba(192,38,61,0.4)] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white kage-press"
+                className="min-h-[48px] px-7 py-3 rounded-xl bg-[#C0263D] hover:bg-[#d42b44] text-white text-sm font-semibold tracking-wide flex items-center gap-2.5 shadow-[0_14px_36px_rgba(192,38,61,0.4)] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white kage-press"
               >
                 <Play className="w-4 h-4 fill-white shrink-0" />
-                <span>Play KAGE Intro</span>
-              </button>
-            </div>
-          )}
-
-          {/* Tap-to-Unmute Floating Hint Pill when video begins muted due to browser policy */}
-          {isMuted && videoStarted && !autoplayBlockedCompletely && (
-            <div className="absolute bottom-6 inset-x-0 z-20 flex justify-center pointer-events-none px-4">
-              <button
-                type="button"
-                onClick={handleToggleMute}
-                className="pointer-events-auto min-h-[38px] px-4 py-1.5 rounded-full bg-[#09080B]/85 hover:bg-[#141116] border border-amber-400/40 hover:border-amber-400 text-xs font-semibold text-amber-200 hover:text-white flex items-center gap-2 shadow-[0_4px_20px_rgba(0,0,0,0.6)] backdrop-blur-md animate-pulse cursor-pointer transition-all"
-              >
-                <Volume2 className="w-4 h-4 text-amber-400" />
-                <span>Tap for Authentic Intro Sound 🔊</span>
+                <span>Play Intro</span>
               </button>
             </div>
           )}
         </div>
       ) : (
-        /* Graceful High-Definition KAGE Brand Fallback & Reduced-Motion Presentation (#09080B) */
+        /* Graceful HD Brand Presentation for Reduced Motion or Video Fallback */
         <div className="relative w-full h-full flex flex-col items-center justify-center bg-[#09080B] px-6">
           {!fallbackImgError ? (
             <img
@@ -475,15 +480,15 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({
                 draggable={false}
                 className="h-16 sm:h-24 md:h-28 w-auto object-contain select-none"
               />
-              <div className="mt-4 w-48 sm:w-72 h-[3px] rounded-full bg-gradient-to-r from-transparent via-[#C0263D] to-transparent shadow-[0_0_16px_rgba(192,38,61,0.85)]" />
-              <p className="mt-3.5 text-xs sm:text-sm md:text-base font-bold uppercase tracking-[0.38em] text-[#F5F1F2]">
+              <div className="mt-4 w-48 sm:w-72 h-[2px] rounded-full bg-gradient-to-r from-transparent via-[#C0263D] to-transparent" />
+              <p className="mt-3.5 text-xs sm:text-sm font-semibold uppercase tracking-[0.36em] text-[#F5F1F2]">
                 THE ANIME UNIVERSE
               </p>
             </div>
           )}
 
           {isReducedStaticMode && (
-            <div className="kage-intro-bottombar absolute bottom-0 inset-x-0 z-30 flex items-center justify-center gap-3">
+            <div className="kage-intro-bottombar absolute bottom-4 inset-x-0 z-30 flex items-center justify-center gap-3">
               <button
                 type="button"
                 onClick={(e) => {
@@ -493,7 +498,7 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({
                 className="min-h-[44px] px-4 py-2 rounded-xl bg-[#141116]/90 hover:bg-[#1C1720] border border-white/15 text-xs font-semibold text-[#F5F1F2] flex items-center gap-2 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C0263D] whitespace-nowrap"
               >
                 <Play className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span>Play Animation</span>
+                <span>Watch Animation</span>
               </button>
               <button
                 type="button"
@@ -501,15 +506,19 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({
                 className="min-h-[44px] px-5 py-2 rounded-xl bg-[#C0263D] hover:bg-[#d42b44] text-xs font-semibold text-white flex items-center gap-2 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white whitespace-nowrap"
               >
                 <span>Enter KAGE</span>
-                <SkipForward className="w-3.5 h-3.5 shrink-0" />
+                <ArrowRight className="w-3.5 h-3.5 shrink-0" />
               </button>
             </div>
           )}
         </div>
       )}
 
-      {/* Subtle Top-Right Controls Bar (Safe-Area Aware, Keyboard Accessible, >= 44px Touch Targets) */}
-      <div className="kage-intro-topbar absolute top-0 inset-x-0 z-40 flex items-center justify-between gap-3 pointer-events-none">
+      {/* Sleek Bottom-Corner Cinema Controls Dock (Thumb-Zone Reachable, Uncluttered, Zero Floating Pills Over Video) */}
+      <div
+        className={`kage-intro-bottombar absolute bottom-3 inset-x-0 z-40 flex items-center justify-between gap-3 pointer-events-none transition-opacity duration-300 ${
+          controlsVisible ? 'opacity-100' : 'opacity-0'
+        }`}
+      >
         <div className="flex items-center gap-2 pointer-events-auto">
           {!showStaticBrandFallback && (
             <button
@@ -517,18 +526,22 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({
               data-kage-silent="true"
               onClick={handleToggleMute}
               aria-label={isMuted ? 'Unmute intro audio' : 'Mute intro audio'}
-              title={isMuted ? 'Unmute audio (M)' : 'Mute audio (M)'}
-              className="min-h-[44px] px-3.5 py-2 rounded-xl bg-[#09080B]/75 hover:bg-[#141116]/90 backdrop-blur-md border border-white/15 hover:border-white/30 text-xs font-medium text-[#F5F1F2] flex items-center gap-2 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C0263D] whitespace-nowrap shrink-0"
+              title={isMuted ? 'Tap for audio (M)' : 'Mute audio (M)'}
+              className={`min-h-[40px] px-3.5 py-2 rounded-lg backdrop-blur-md border text-xs font-medium flex items-center gap-2 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C0263D] whitespace-nowrap shrink-0 ${
+                isMuted && videoStarted
+                  ? 'bg-[#09080B]/75 border-amber-400/40 text-amber-200 hover:bg-[#141116] hover:border-amber-400/75'
+                  : 'bg-[#09080B]/65 border-white/12 text-[#D8D2DC] hover:bg-[#141116]/90 hover:text-white hover:border-white/25'
+              }`}
             >
               {isMuted ? (
                 <>
-                  <VolumeX className="w-4 h-4 text-[#A7A0AA] shrink-0" />
-                  <span className="hidden xs:inline sm:inline text-[#D8D2DC]">Unmute</span>
+                  <VolumeX className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                  <span>{videoStarted ? 'Tap for Sound' : 'Unmute'}</span>
                 </>
               ) : (
                 <>
-                  <Volume2 className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span className="hidden xs:inline sm:inline text-[#F5F1F2]">Sound On</span>
+                  <Volume2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span className="hidden sm:inline">Sound On</span>
                 </>
               )}
             </button>
@@ -540,7 +553,7 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({
             onClick={handleReplay}
             aria-label="Replay KAGE intro"
             title="Replay Intro (R)"
-            className="min-h-[44px] min-w-[44px] px-3 py-2 rounded-xl bg-[#09080B]/75 hover:bg-[#141116]/90 backdrop-blur-md border border-white/15 hover:border-white/30 text-xs font-medium text-[#D8D2DC] hover:text-[#F5F1F2] flex items-center justify-center gap-1.5 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C0263D] whitespace-nowrap shrink-0"
+            className="min-h-[40px] min-w-[40px] px-3 py-2 rounded-lg bg-[#09080B]/65 hover:bg-[#141116]/90 backdrop-blur-md border border-white/12 hover:border-white/25 text-xs font-medium text-[#A7A0AA] hover:text-[#F5F1F2] flex items-center justify-center gap-1.5 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C0263D] whitespace-nowrap shrink-0"
           >
             <RotateCcw className="w-3.5 h-3.5 shrink-0" />
             <span className="hidden sm:inline">Replay</span>
@@ -552,39 +565,23 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({
           data-kage-silent="true"
           onClick={handleSkip}
           aria-label="Skip intro and enter KAGE homepage"
-          className="pointer-events-auto min-h-[44px] px-4 py-2 rounded-xl bg-[#09080B]/80 hover:bg-[#141116]/95 backdrop-blur-md border border-white/18 hover:border-[#C0263D]/80 text-xs font-semibold tracking-wide text-[#F5F1F2] flex items-center gap-2 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C0263D] whitespace-nowrap shrink-0"
+          className="pointer-events-auto min-h-[40px] px-4 py-2 rounded-lg bg-[#09080B]/75 hover:bg-[#141116]/95 backdrop-blur-md border border-white/15 hover:border-[#C0263D]/70 text-xs font-semibold tracking-wide text-[#F5F1F2] flex items-center gap-2 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C0263D] whitespace-nowrap shrink-0"
         >
-          <span>Skip Intro</span>
-          <SkipForward className="w-3.5 h-3.5 text-[#C0263D] shrink-0" />
+          <span>Skip</span>
+          <ArrowRight className="w-3.5 h-3.5 text-[#C0263D] shrink-0" />
         </button>
       </div>
 
-      {/* Ultra-Subtle Bottom Timeline Hairline */}
+      {/* Ultra-Thin Bottom Progress Hairline */}
       {!showStaticBrandFallback && (
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute bottom-0 inset-x-0 z-30 h-[2px] bg-white/6 overflow-hidden"
+          className="pointer-events-none absolute bottom-0 inset-x-0 z-30 h-[2px] bg-white/8 overflow-hidden"
         >
-          <svg
-            className="w-full h-full block"
-            viewBox="0 0 1000 2"
-            preserveAspectRatio="none"
-          >
-            <defs>
-              <linearGradient id="kageIntroTimelineGrad" x1="0" y1="0" x2="1000" y2="0" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stopColor="#6D28D9" />
-                <stop offset="55%" stopColor="#C0263D" />
-                <stop offset="100%" stopColor="#FBBF24" />
-              </linearGradient>
-            </defs>
-            <rect
-              x="0"
-              y="0"
-              width={Math.max(0, Math.min(1000, Math.round(progressRatio * 1000)))}
-              height="2"
-              fill="url(#kageIntroTimelineGrad)"
-            />
-          </svg>
+          <div
+            className="h-full w-full origin-left bg-gradient-to-r from-[#6D28D9] via-[#C0263D] to-amber-400 transition-transform duration-150 ease-linear"
+            style={{ transform: `scaleX(${Math.max(0, Math.min(1, progressRatio))})` }}
+          />
         </div>
       )}
     </div>

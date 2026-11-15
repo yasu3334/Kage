@@ -7,8 +7,8 @@ export const FALLBACK_ANIME_ITEMS: RealmsAnimeItem[] = [
     canonicalId: 52299,
     title: 'Solo Leveling (Ore dake Level Up na Ken)',
     englishTitle: 'Solo Leveling',
-    imageUrl: 'https://cdn.myanimelist.net/images/anime/1170/148482.jpg',
-    score: 8.42,
+    imageUrl: 'https://cdn.myanimelist.net/images/anime/1801/142390l.jpg',
+    score: 8.52,
     episodes: 12,
     status: 'Finished Airing',
     genres: ['Action', 'Fantasy'],
@@ -59,7 +59,7 @@ export const FALLBACK_ANIME_ITEMS: RealmsAnimeItem[] = [
     canonicalId: 52991,
     title: 'Sousou no Frieren (Frieren: Beyond Journey’s End)',
     englishTitle: "Frieren: Beyond Journey's End",
-    imageUrl: 'https://cdn.myanimelist.net/images/anime/1015/138075.jpg',
+    imageUrl: 'https://cdn.myanimelist.net/images/anime/1015/138006.jpg',
     score: 9.32,
     episodes: 28,
     status: 'Finished Airing',
@@ -80,22 +80,230 @@ export const FALLBACK_ANIME_ITEMS: RealmsAnimeItem[] = [
     synopsis:
       'Monkey D. Luffy and his Straw Hat Pirates sail the Grand Line in search of the legendary treasure One Piece.',
   },
+  {
+    malId: 57334,
+    canonicalId: 57334,
+    title: 'Dandadan',
+    englishTitle: 'DAN DA DAN',
+    imageUrl: 'https://cdn.myanimelist.net/images/anime/1584/143719.jpg',
+    score: 8.65,
+    episodes: 12,
+    status: 'Currently Airing',
+    genres: ['Action', 'Comedy', 'Supernatural', 'Sci-Fi'],
+    synopsis:
+      'Momo Ayase and Okarun discover that extraterrestrial beings and demonic yokai are shockingly real in this high-octane battle comedy.',
+  },
+  {
+    malId: 54790,
+    canonicalId: 54790,
+    title: 'Kaiju No. 8',
+    englishTitle: 'Kaiju No. 8',
+    imageUrl: 'https://cdn.myanimelist.net/images/anime/1946/136661.jpg',
+    score: 8.35,
+    episodes: 12,
+    status: 'Finished Airing',
+    genres: ['Action', 'Sci-Fi'],
+    synopsis:
+      'Kafka Hibino gains the ability to transform into a humanoid Kaiju and enlists in the Defense Force to protect humanity.',
+  },
+  {
+    malId: 41467,
+    canonicalId: 41467,
+    title: 'Bleach: Sennen Kessen-hen (Thousand-Year Blood War)',
+    englishTitle: 'Bleach: Thousand-Year Blood War',
+    imageUrl: 'https://cdn.myanimelist.net/images/anime/1764/126627.jpg',
+    score: 8.92,
+    episodes: 13,
+    status: 'Finished Airing',
+    genres: ['Action', 'Supernatural'],
+    synopsis:
+      'The Soul Society faces extinction as Yhwach and the Quincy Empire declare war. Ichigo Kurosaki enters the fray with unprecedented bankai power.',
+  },
+  {
+    malId: 44511,
+    canonicalId: 44511,
+    title: 'Chainsaw Man',
+    englishTitle: 'Chainsaw Man',
+    imageUrl: 'https://cdn.myanimelist.net/images/anime/1806/126216.jpg',
+    score: 8.51,
+    episodes: 12,
+    status: 'Finished Airing',
+    genres: ['Action', 'Supernatural'],
+    synopsis:
+      'Denji fuses with his pet devil Pochita to become Chainsaw Man, hunting down deadly fiends for the Public Safety Division.',
+  },
+  {
+    malId: 1535,
+    canonicalId: 1535,
+    title: 'Death Note',
+    englishTitle: 'Death Note',
+    imageUrl: 'https://cdn.myanimelist.net/images/anime/9/9453.jpg',
+    score: 8.62,
+    episodes: 37,
+    status: 'Finished Airing',
+    genres: ['Psychological', 'Supernatural', 'Mystery'],
+    synopsis:
+      'Light Yagami obtains a supernatural notebook capable of killing anyone whose name is written inside, battling world-class detective L in a battle of wits.',
+  },
+  {
+    malId: 5114,
+    canonicalId: 5114,
+    title: 'Fullmetal Alchemist: Brotherhood',
+    englishTitle: 'Fullmetal Alchemist: Brotherhood',
+    imageUrl: 'https://cdn.myanimelist.net/images/anime/1223/96541.jpg',
+    score: 9.1,
+    episodes: 64,
+    status: 'Finished Airing',
+    genres: ['Action', 'Adventure', 'Fantasy'],
+    synopsis:
+      'Brothers Edward and Alphonse Elric search for the Philosopher\'s Stone to restore their bodies after a disastrous alchemy ritual.',
+  },
+  {
+    malId: 11061,
+    canonicalId: 11061,
+    title: 'Hunter x Hunter (2011)',
+    englishTitle: 'Hunter x Hunter',
+    imageUrl: 'https://cdn.myanimelist.net/images/anime/1337/99013.jpg',
+    score: 9.04,
+    episodes: 148,
+    status: 'Finished Airing',
+    genres: ['Action', 'Adventure', 'Fantasy'],
+    synopsis:
+      'Gon Freecss trains to become an elite Hunter and master the deadly martial art of Nen in search of his father.',
+  },
+  {
+    malId: 42310,
+    canonicalId: 42310,
+    title: 'Cyberpunk: Edgerunners',
+    englishTitle: 'Cyberpunk: Edgerunners',
+    imageUrl: 'https://cdn.myanimelist.net/images/anime/1818/126435.jpg',
+    score: 8.6,
+    episodes: 10,
+    status: 'Finished Airing',
+    genres: ['Action', 'Sci-Fi'],
+    synopsis:
+      'A street kid trying to survive in Night City becomes an edgerunner—a mercenary outlaw in a tech and body-modification obsessed metropolis.',
+  },
+  {
+    malId: 37521,
+    canonicalId: 37521,
+    title: 'Vinland Saga',
+    englishTitle: 'Vinland Saga',
+    imageUrl: 'https://cdn.myanimelist.net/images/anime/1500/103005.jpg',
+    score: 8.75,
+    episodes: 24,
+    status: 'Finished Airing',
+    genres: ['Action', 'Adventure', 'Drama'],
+    synopsis:
+      'Thorfinn pursues vengeance against the Viking mercenary leader Askeladd across blood-soaked 11th-century England.',
+  },
+  {
+    malId: 1575,
+    canonicalId: 1575,
+    title: 'Code Geass: Hangyaku no Lelouch',
+    englishTitle: 'Code Geass: Lelouch of the Rebellion',
+    imageUrl: 'https://cdn.myanimelist.net/images/anime/1032/135088.jpg',
+    score: 8.7,
+    episodes: 25,
+    status: 'Finished Airing',
+    genres: ['Action', 'Drama', 'Sci-Fi'],
+    synopsis:
+      'Exiled prince Lelouch vi Britannia gains the absolute power of Geass to command anyone to do his bidding, waging war against an empire.',
+  },
+  {
+    malId: 9253,
+    canonicalId: 9253,
+    title: 'Steins;Gate',
+    englishTitle: 'Steins;Gate',
+    imageUrl: 'https://cdn.myanimelist.net/images/anime/1935/127974.jpg',
+    score: 9.07,
+    episodes: 24,
+    status: 'Finished Airing',
+    genres: ['Drama', 'Sci-Fi', 'Suspense'],
+    synopsis:
+      'Self-proclaimed mad scientist Rintaro Okabe accidentally invents a microwave that can send text messages into the past, triggering timeline shifts.',
+  },
+  {
+    malId: 52034,
+    canonicalId: 52034,
+    title: 'Oshi no Ko',
+    englishTitle: '[Oshi No Ko]',
+    imageUrl: 'https://cdn.myanimelist.net/images/anime/1812/134736.jpg',
+    score: 8.7,
+    episodes: 11,
+    status: 'Finished Airing',
+    genres: ['Drama', 'Mystery', 'Supernatural'],
+    synopsis:
+      'Reincarnated as twins of idol sensation Ai Hoshino, Aqua and Ruby navigate the dazzling yet dangerous secrets of the entertainment industry.',
+  },
+  {
+    malId: 46569,
+    canonicalId: 46569,
+    title: 'Jigokuraku (Hell’s Paradise)',
+    englishTitle: "Hell's Paradise",
+    imageUrl: 'https://cdn.myanimelist.net/images/anime/1075/131925.jpg',
+    score: 8.24,
+    episodes: 13,
+    status: 'Finished Airing',
+    genres: ['Action', 'Adventure', 'Fantasy'],
+    synopsis:
+      'Gabimaru the Hollow journeys to a supernatural island to recover the Elixir of Life in exchange for a full pardon.',
+  },
+  {
+    malId: 54900,
+    canonicalId: 54900,
+    title: 'Wind Breaker',
+    englishTitle: 'WIND BREAKER',
+    imageUrl: 'https://cdn.myanimelist.net/images/anime/1438/141816.jpg',
+    score: 8.12,
+    episodes: 13,
+    status: 'Finished Airing',
+    genres: ['Action'],
+    synopsis:
+      'Haruka Sakura enters Furin High to fight to the top, discovering that the school’s delinquents protect their town from danger.',
+  },
+  {
+    malId: 23273,
+    canonicalId: 23273,
+    title: 'Shigatsu wa Kimi no Uso',
+    englishTitle: 'Your Lie in April',
+    imageUrl: 'https://cdn.myanimelist.net/images/anime/1405/143284.jpg',
+    score: 8.65,
+    episodes: 22,
+    status: 'Finished Airing',
+    genres: ['Drama', 'Romance'],
+    synopsis:
+      'Traumatized piano prodigy Kosei Arima regains his passion for music after meeting free-spirited violinist Kaori Miyazono.',
+  },
+  {
+    malId: 30,
+    canonicalId: 30,
+    title: 'Neon Genesis Evangelion',
+    englishTitle: 'Neon Genesis Evangelion',
+    imageUrl: 'https://cdn.myanimelist.net/images/anime/1314/108941.jpg',
+    score: 8.35,
+    episodes: 26,
+    status: 'Finished Airing',
+    genres: ['Action', 'Drama', 'Sci-Fi', 'Suspense'],
+    synopsis:
+      'Shinji Ikari pilots giant biomechanical Evangelion Unit-01 against celestial Entities known as Angels threatening Earth.',
+  },
 ];
 
 export function getStaticRealmsFallback() {
   const featured = FALLBACK_ANIME_ITEMS[0];
-  const featuredPool = FALLBACK_ANIME_ITEMS;
+  const featuredPool = FALLBACK_ANIME_ITEMS.slice(0, 8);
 
   const initialRows = [
     {
       definition: {
         slug: 'popular-now',
-        label: 'Trending Now',
+        label: 'Trending Now Across Realms',
         category: 'Spotlight',
-        shortDescription: 'The most watched and talked about anime worldwide.',
+        shortDescription: 'The most watched, talked about, and celebrated anime worldwide.',
       },
-      items: FALLBACK_ANIME_ITEMS,
-      total: FALLBACK_ANIME_ITEMS.length,
+      items: FALLBACK_ANIME_ITEMS.slice(0, 10),
+      total: 10,
       source: 'curated',
     },
     {
@@ -103,10 +311,10 @@ export function getStaticRealmsFallback() {
         slug: 'action',
         label: 'High-Octane Action & Battles',
         category: 'Action',
-        shortDescription: 'Blade duels, sorcery, and martial prowess.',
+        shortDescription: 'Sorcery showdowns, bankai clashes, and blade-sharp animation.',
       },
       items: FALLBACK_ANIME_ITEMS.filter((a) => (a.genres || []).includes('Action')),
-      total: 4,
+      total: FALLBACK_ANIME_ITEMS.filter((a) => (a.genres || []).includes('Action')).length,
       source: 'curated',
     },
     {
@@ -114,10 +322,50 @@ export function getStaticRealmsFallback() {
         slug: 'fantasy',
         label: 'Grand Fantasy & Magic',
         category: 'Fantasy',
-        shortDescription: 'Immersive realms of spells, dragons, and ancient curses.',
+        shortDescription: 'Ancient curses, leveling systems, and sprawling mystical worlds.',
       },
       items: FALLBACK_ANIME_ITEMS.filter((a) => (a.genres || []).includes('Fantasy')),
-      total: 4,
+      total: FALLBACK_ANIME_ITEMS.filter((a) => (a.genres || []).includes('Fantasy')).length,
+      source: 'curated',
+    },
+    {
+      definition: {
+        slug: 'psychological',
+        label: 'Psychological & Masterminds',
+        category: 'Psychological',
+        shortDescription: 'Intellectual mind games, cat-and-mouse traps, and moral ambiguity.',
+      },
+      items: FALLBACK_ANIME_ITEMS.filter(
+        (a) =>
+          (a.genres || []).includes('Psychological') ||
+          (a.genres || []).includes('Mystery') ||
+          (a.genres || []).includes('Suspense')
+      ),
+      total: 5,
+      source: 'curated',
+    },
+    {
+      definition: {
+        slug: 'sci-fi',
+        label: 'Cyberpunk & Futuristic Sci-Fi',
+        category: 'Sci-Fi',
+        shortDescription: 'Neon cyber-dystopias, time paradoxes, and mech warfare.',
+      },
+      items: FALLBACK_ANIME_ITEMS.filter((a) => (a.genres || []).includes('Sci-Fi')),
+      total: FALLBACK_ANIME_ITEMS.filter((a) => (a.genres || []).includes('Sci-Fi')).length,
+      source: 'curated',
+    },
+    {
+      definition: {
+        slug: 'drama-romance',
+        label: 'Emotion, Music & Human Connection',
+        category: 'Drama',
+        shortDescription: 'Unforgettable soundtracks, heartfelt journeys, and tears.',
+      },
+      items: FALLBACK_ANIME_ITEMS.filter(
+        (a) => (a.genres || []).includes('Drama') || (a.genres || []).includes('Romance')
+      ),
+      total: 6,
       source: 'curated',
     },
   ];

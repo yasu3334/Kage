@@ -100,8 +100,8 @@ export const DEFAULT_AUDIO_PREFERENCES: KageAudioPreferences = {
   notificationSoundsEnabled: true,
   voiceRoomSoundsEnabled: true,
   bgMusicEnabled: false,
-  soundVolume: 72,
-  bgMusicVolume: 30,
+  soundVolume: 35,
+  bgMusicVolume: 20,
 };
 
 export const AUDIO_PREFS_STORAGE_KEY = 'kage_audio_prefs_v1';
@@ -288,11 +288,11 @@ class KageSoundManager {
     const now = this.ctx.currentTime;
     const voiceDuck = this.inVoiceRoom ? 0.3 : 1.0;
     const sfxTarget = this.prefs.masterEnabled
-      ? (this.prefs.soundVolume / 100) * 0.55 * voiceDuck
+      ? (this.prefs.soundVolume / 100) * 0.22 * voiceDuck
       : 0.0001;
     const musicTarget =
       this.prefs.masterEnabled && this.prefs.bgMusicEnabled && !this.inVoiceRoom
-        ? (this.prefs.bgMusicVolume / 100) * 0.22
+        ? (this.prefs.bgMusicVolume / 100) * 0.15
         : 0.0001;
 
     this.sfxBus.gain.setTargetAtTime(sfxTarget, now, 0.03);
@@ -308,24 +308,23 @@ class KageSoundManager {
     for (let i = 0; i < len; i++) {
       const w = Math.random() * 2 - 1;
       last = (last + 0.05 * w) / 1.05;
-      ch[i] = last * 2.4;
+      ch[i] = last * 1.6;
     }
     this.noiseBuffer = noise;
 
-    // 2. Preload ultra-short crisp UI click AudioBuffer in RAM for sub-millisecond button feedback
-    const clickLen = Math.floor(ctx.sampleRate * 0.042);
+    // 2. Preload gentle organic haptic tap AudioBuffer (subtle, non-piercing, pleasant)
+    const clickLen = Math.floor(ctx.sampleRate * 0.035);
     const clickBuf = ctx.createBuffer(1, clickLen, ctx.sampleRate);
     const clickData = clickBuf.getChannelData(0);
     for (let i = 0; i < clickLen; i++) {
       const t = i / ctx.sampleRate;
-      const env = Math.exp(-t * 115);
-      // Soft dark-futuristic crystalline tap (dual harmonic + transient)
+      const env = Math.exp(-t * 90);
+      // Warm, deep, comfortable tactile click (no piercing highs)
       clickData[i] =
-        (Math.sin(2 * Math.PI * 640 * t) * 0.65 +
-          Math.sin(2 * Math.PI * 1280 * t) * 0.28 +
-          Math.sin(2 * Math.PI * 220 * t) * 0.25) *
+        (Math.sin(2 * Math.PI * 340 * t) * 0.5 +
+          Math.sin(2 * Math.PI * 180 * t) * 0.35) *
         env *
-        0.5;
+        0.28;
     }
     this.preloadedShortBuffers.set('ui_click', clickBuf);
   }

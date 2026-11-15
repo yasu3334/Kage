@@ -14,6 +14,7 @@ import {
   Share2,
   Star,
   Trash2,
+  User,
   UserCheck,
   UserPlus,
 } from 'lucide-react';
@@ -318,17 +319,76 @@ export const ProfilePage: React.FC = () => {
 
   if (!targetIdentifier && !user) {
     return (
-      <div className="p-8 rounded-2xl bg-[#141116] border border-white/10 text-center space-y-4">
-        <h2 className="text-lg font-bold text-[#F5F1F2]">Sign in to view your Hunter Profile</h2>
-        <p className="text-xs text-[#A7A0AA]">
-          Track watched anime, customize your avatar, and unlock personalized KAGE recommendations.
-        </p>
-        <Link
-          to="/auth/welcome"
-          className="inline-flex min-h-[44px] px-6 items-center rounded-xl bg-[#C0263D] text-white text-xs font-semibold"
-        >
-          Sign In / Create Account
-        </Link>
+      <div className="max-w-4xl mx-auto space-y-5">
+        {/* Empty Guest Profile Header */}
+        <div className="relative rounded-2xl bg-[#141116] border border-white/10 overflow-hidden shadow-[0_12px_40px_rgba(0,0,0,0.65)]">
+          {/* Subtle Obsidian Banner without distracting artwork */}
+          <div className="h-32 sm:h-44 bg-gradient-to-r from-[#09080B] via-[#1C1720] to-[#09080B] border-b border-white/8 relative">
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/5 via-transparent to-transparent" />
+          </div>
+
+          <div className="px-5 sm:px-6 pb-6 pt-0 relative">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 -mt-12 sm:-mt-16 mb-4">
+              <div className="flex items-end gap-3.5">
+                {/* Empty Dashed Silhouette — Zero fake photo or logo DP */}
+                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-2 border-dashed border-white/25 bg-[#09080B] flex items-center justify-center text-[#A7A0AA] shadow-[0_8px_24px_rgba(0,0,0,0.8)]">
+                  <User className="w-8 h-8 sm:w-10 sm:h-10 opacity-35" />
+                </div>
+                <div className="min-w-0 pb-1">
+                  <h1 className="font-display text-xl sm:text-2xl font-bold tracking-wide text-[#F5F1F2]">
+                    Hunter Profile
+                  </h1>
+                  <p className="text-xs text-[#A7A0AA]">@guest · Unregistered</p>
+                </div>
+              </div>
+
+              <Link
+                to="/auth/welcome"
+                className="inline-flex min-h-[42px] px-5 items-center justify-center rounded-xl bg-[#C0263D] hover:bg-[#d42b44] text-white text-xs font-semibold tracking-wide transition-colors shadow-[0_4px_16px_rgba(192,38,61,0.35)] shrink-0"
+              >
+                Sign In / Join KAGE
+              </Link>
+            </div>
+
+            <p className="text-xs sm:text-sm text-[#A7A0AA] max-w-xl leading-relaxed">
+              No hunter account is currently signed in. Log in to track your watched anime series, customize your profile bio and avatar, bookmark favorite discussions, and represent your fandom guild in live Clashes.
+            </p>
+
+            <div className="flex items-center gap-6 pt-4 mt-4 border-t border-white/8 text-xs font-mono-num text-[#A7A0AA]">
+              <div>
+                <span className="font-bold text-[#F5F1F2]">0</span> Followers
+              </div>
+              <div>
+                <span className="font-bold text-[#F5F1F2]">0</span> Following
+              </div>
+              <div>
+                <span className="font-bold text-[#F5F1F2]">0</span> Anime Tracked
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Empty State Body */}
+        <div className="p-8 rounded-2xl bg-[#141116] border border-white/10 text-center space-y-3">
+          <p className="text-sm font-semibold text-[#F5F1F2]">Profile Empty</p>
+          <p className="text-xs text-[#A7A0AA] max-w-md mx-auto">
+            Your personal anime watchlist, created Pulse posts, and guild affiliations will appear here once you authenticate.
+          </p>
+          <div className="pt-2 flex items-center justify-center gap-3">
+            <Link
+              to="/auth/login"
+              className="min-h-[38px] px-4 rounded-xl bg-[#1F1A24] hover:bg-white/10 border border-white/12 text-xs font-semibold text-[#F5F1F2] inline-flex items-center"
+            >
+              Sign In
+            </Link>
+            <Link
+              to="/"
+              className="min-h-[38px] px-4 rounded-xl bg-[#141116] hover:bg-white/5 border border-white/10 text-xs text-[#A7A0AA] inline-flex items-center"
+            >
+              Browse Realms
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }

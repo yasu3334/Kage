@@ -31,7 +31,14 @@ import {
   SettingsPage,
 } from './pages/SocialAndUtilityPages';
 import { AdminPanelPage } from './pages/AdminPanelPage';
+import { InkverseDashboardPage } from './pages/InkverseDashboardPage';
+import { InkverseBrowsePage } from './pages/InkverseBrowsePage';
+import { InkverseMangaDetailPage } from './pages/InkverseMangaDetailPage';
+import { InkverseReaderPage } from './pages/InkverseReaderPage';
+import { InkverseMyMangaPage } from './pages/InkverseMyMangaPage';
+import { InkverseUploadStudioPage } from './pages/InkverseUploadStudioPage';
 import { KageLogo } from './components/KageBrand';
+import { GlobalLeaderboard } from './components/GlobalLeaderboard';
 
 const INTRO_SESSION_KEY = 'kage_zenitsu_intro_session_v3';
 
@@ -156,6 +163,14 @@ const KageExperience: React.FC = () => {
           <Route path="/category/:genre" element={<CategoryDetailPage />} />
           <Route path="/anime/:malId" element={<AnimeDetailPage />} />
 
+          {/* KAGE — INKVERSE Manga Platform */}
+          <Route path="/inkverse" element={<InkverseDashboardPage />} />
+          <Route path="/inkverse/browse" element={<InkverseBrowsePage />} />
+          <Route path="/inkverse/manga/:mangaId" element={<InkverseMangaDetailPage />} />
+          <Route path="/inkverse/read/:mangaId/:chapterId" element={<InkverseReaderPage />} />
+          <Route path="/inkverse/my-manga" element={<InkverseMyMangaPage />} />
+          <Route path="/inkverse/studio" element={<InkverseUploadStudioPage />} />
+
           {/* Fandom Feed, Guilds, Community Chat Rooms, Live Voice & Clash */}
           <Route path="/pulse" element={<PulsePage />} />
           <Route path="/pulse/:postId" element={<PulsePage />} />
@@ -166,6 +181,14 @@ const KageExperience: React.FC = () => {
           <Route path="/voice/:id" element={<VoiceRoomActivePage />} />
           <Route path="/clash" element={<ClashPage />} />
           <Route path="/clash/:clashId" element={<ClashPage />} />
+          <Route
+            path="/leaderboard"
+            element={
+              <div className="pt-1 pb-6">
+                <GlobalLeaderboard defaultTab="split" limit={40} />
+              </div>
+            }
+          />
 
           {/* Profiles & Search */}
           <Route

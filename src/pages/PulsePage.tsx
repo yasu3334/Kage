@@ -118,6 +118,7 @@ interface PulsePost {
   viewerLiked: boolean;
   viewerBookmarked: boolean;
   viewerReposted: boolean;
+  viewerFollowingAuthor?: boolean;
 }
 
 interface ThreadComment {
@@ -752,6 +753,59 @@ export const PulsePage: React.FC = () => {
     }
   };
 
+  const handleFollowAuthor = async (authorUid: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (!user) {
+      navigate('/auth/login');
+      return;
+    }
+    if (user.uid === authorUid) return;
+
+    const currentPost = posts.find((p) => p.author.uid === authorUid);
+    const nextFollow = !currentPost?.viewerFollowingAuthor;
+
+    // Optimistically update all posts by this author across feed
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.author.uid === authorUid ? { ...p, viewerFollowingAuthor: nextFollow } : p
+      )
+    );
+    if (threadDetail && threadDetail.author.uid === authorUid) {
+      setThreadDetail((prev: any) => (prev ? { ...prev, viewerFollowingAuthor: nextFollow } : prev));
+    }
+
+    try {
+      const res = await apiFetch<{ following: boolean }>(`/api/users/${authorUid}/follow`, {
+        method: 'POST',
+      });
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.author.uid === authorUid ? { ...p, viewerFollowingAuthor: res.following } : p
+        )
+      );
+      if (threadDetail && threadDetail.author.uid === authorUid) {
+        setThreadDetail((prev: any) =>
+          prev ? { ...prev, viewerFollowingAuthor: res.following } : prev
+        );
+      }
+      if (res.following) {
+        kageSound.play('ui_follow');
+      }
+    } catch {
+      // Revert optimistic state on error
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.author.uid === authorUid ? { ...p, viewerFollowingAuthor: !nextFollow } : p
+        )
+      );
+      if (threadDetail && threadDetail.author.uid === authorUid) {
+        setThreadDetail((prev: any) =>
+          prev ? { ...prev, viewerFollowingAuthor: !nextFollow } : prev
+        );
+      }
+    }
+  };
+
   const handleVotePoll = async (postId: number, optionId: string) => {
     if (!user) {
       navigate('/auth/login');
@@ -1313,6 +1367,29 @@ export const PulsePage: React.FC = () => {
                             {post.author.displayName}
                           </Link>
                           <OwnerBadge role={post.author.role} size="xs" />
+                          {user?.uid !== post.author.uid && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleFollowAuthor(post.author.uid, e)}
+                              className={`ml-1 min-h-[24px] px-2.5 py-0.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
+                                post.viewerFollowingAuthor
+                                  ? 'bg-white/10 hover:bg-rose-500/20 text-[#D8D2DC] hover:text-rose-300 border border-white/15'
+                                  : 'bg-[#C0263D] hover:bg-[#d42b44] text-white shadow-[0_2px_8px_rgba(192,38,61,0.35)]'
+                              }`}
+                            >
+                              {post.viewerFollowingAuthor ? (
+                                <>
+                                  <Check className="w-3 h-3 text-emerald-400" />
+                                  <span>Following</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Plus className="w-3 h-3" />
+                                  <span>Follow</span>
+                                </>
+                              )}
+                            </button>
+                          )}
                           <span className="text-xs text-[#A7A0AA] truncate">
                             @{post.author.username} · {formatRelativeTime(post.createdAt)}
                             {post.editedAt ? ' · edited' : ''}
@@ -2118,6 +2195,29 @@ export const PulsePage: React.FC = () => {
                             {threadDetail.author.displayName}
                           </Link>
                           <OwnerBadge role={threadDetail.author.role} size="xs" />
+                          {user?.uid !== threadDetail.author.uid && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleFollowAuthor(threadDetail.author.uid, e)}
+                              className={`ml-1 min-h-[24px] px-2.5 py-0.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
+                                threadDetail.viewerFollowingAuthor
+                                  ? 'bg-white/10 hover:bg-rose-500/20 text-[#D8D2DC] hover:text-rose-300 border border-white/15'
+                                  : 'bg-[#C0263D] hover:bg-[#d42b44] text-white shadow-[0_2px_8px_rgba(192,38,61,0.35)]'
+                              }`}
+                            >
+                              {threadDetail.viewerFollowingAuthor ? (
+                                <>
+                                  <Check className="w-3 h-3 text-emerald-400" />
+                                  <span>Following</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Plus className="w-3 h-3" />
+                                  <span>Follow</span>
+                                </>
+                              )}
+                            </button>
+                          )}
                         </div>
                         <p className="text-xs text-[#A7A0AA]">
                           @{threadDetail.author.username} ·{' '}

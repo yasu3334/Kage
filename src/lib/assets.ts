@@ -37,7 +37,7 @@ export const KAGE_ASSETS: Record<string, string> = {
 };
 
 export function resolveAssetUrl(src?: string | null): string {
-  if (!src) return '/assets/extracted/solo-hero-home.jpg';
+  if (!src) return '';
   if (KAGE_ASSETS[src]) return KAGE_ASSETS[src];
   return src;
 }

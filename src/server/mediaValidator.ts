@@ -343,3 +343,135 @@ export function validateSplashVideoPayload(dataUrl: string): ValidatedMediaResul
   };
 }
 
+const MANGA_BLOCKED_PATTERNS: RegExp[] = [
+  /\b(hentai|nsfw|nude|nudity|porn|xxx|erotica|ecchi\s*18|uncensored\s*sex|doujinshi\s*18)\b/i,
+  /\b(rape|incest|gore\s*snuff|bestiality|lolicon|shotacon)\b/i,
+  /\b(crack\s*download|pirated\s*scans|free\s*warez|telegram\s*channel|whatsapp\s*group\s*join|casino\s*betting)\b/i,
+];
+
+export function validateMangaTextSafety(fields: {
+  title?: string;
+  synopsis?: string;
+  authorName?: string;
+  chapterTitle?: string;
+}): void {
+  const combined = [
+    fields.title || '',
+    fields.synopsis || '',
+    fields.authorName || '',
+    fields.chapterTitle || '',
+  ]
+    .join(' ')
+    .trim();
+
+  for (const rx of MANGA_BLOCKED_PATTERNS) {
+    if (rx.test(combined)) {
+      throw new Error(
+        'Upload rejected: Content contains explicit, NSFW, spam, or prohibited material not permitted on KAGE INKVERSE.'
+      );
+    }
+  }
+}
+
+async function moderateMangaArtworkIfConfigured(
+  mimeType: string,
+  cleanBase64: string,
+  kind: 'cover' | 'page'
+): Promise<{ checked: boolean; approved: boolean; reason?: string }> {
+  if (!isGeminiModerationConfigured()) {
+    return { checked: false, approved: true };
+  }
+
+  try {
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        {
+          inlineData: {
+            mimeType,
+            data: cleanBase64,
+          },
+        },
+        {
+          text: `Inspect this uploaded manga ${kind} image for an all-ages-friendly anime & manga reading platform (INKVERSE). Respond ONLY in strict JSON: {"isSafe": boolean, "isMangaOrIllustrated": boolean, "confidence": "high"|"medium"|"low", "reason": "short explanation"}. Set isSafe=false if there is nudity, sexually explicit content, graphic gore, hate symbols, self-harm, or harassment. Set isMangaOrIllustrated=true for manga pages, webtoons, comics, anime/manga covers, title pages, or character illustrations; set isMangaOrIllustrated=false ONLY if it is clearly an unrelated real-world selfie/photo, spam advertisement, or non-comic screenshot with high confidence.`,
+        },
+      ],
+    });
+
+    const rawText = (response.text || '').trim();
+    const jsonMatch = /\{[\s\S]*\}/.exec(rawText);
+    if (!jsonMatch) {
+      return { checked: false, approved: true };
+    }
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (parsed.isSafe === false) {
+      return {
+        checked: true,
+        approved: false,
+        reason:
+          'Upload rejected: Image violated KAGE INKVERSE safety guidelines (explicit, graphic, or unsafe content).',
+      };
+    }
+    if (parsed.isMangaOrIllustrated === false && parsed.confidence === 'high') {
+      return {
+        checked: true,
+        approved: false,
+        reason: `Upload rejected: Manga ${kind} must be genuine manga, webtoon, or illustrated comic artwork rather than unrelated photos or spam.`,
+      };
+    }
+    return { checked: true, approved: true };
+  } catch {
+    return { checked: false, approved: true };
+  }
+}
+
+export async function validateMangaArtworkPayload(
+  dataUrl: string,
+  kind: 'cover' | 'page'
+): Promise<ValidatedMediaResult> {
+  const { buffer, cleanBase64 } = parseDataUrl(dataUrl);
+  const MAX_BYTES = 10 * 1024 * 1024; // 10 MB per manga cover/page
+  if (buffer.length < 1024) {
+    throw new Error(`Manga ${kind} file is too small or corrupted.`);
+  }
+  if (buffer.length > MAX_BYTES) {
+    throw new Error(`Manga ${kind} file exceeds the 10 MB maximum size limit.`);
+  }
+
+  const { mimeType, width, height } = detectImageMagicAndDimensions(buffer);
+  const minW = kind === 'cover' ? 240 : 320;
+  const minH = kind === 'cover' ? 320 : 320;
+  if (width < minW || height < minH) {
+    throw new Error(
+      `Manga ${kind} resolution (${width}x${height}px) is too low. Minimum required size is ${minW}x${minH}px.`
+    );
+  }
+  if (width > 7680 || height > 12000) {
+    throw new Error(`Manga ${kind} dimensions (${width}x${height}px) exceed maximum allowed resolution.`);
+  }
+
+  const moderation = await moderateMangaArtworkIfConfigured(mimeType, cleanBase64, kind);
+  if (!moderation.approved) {
+    throw new Error(
+      moderation.reason || `Manga ${kind} upload did not pass KAGE INKVERSE safety moderation.`
+    );
+  }
+
+  const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
+
+  return {
+    mimeType,
+    byteSize: buffer.length,
+    width,
+    height,
+    sha256,
+    cleanBase64,
+    moderationStatus: moderation.checked ? 'verified_ai' : 'pending_review',
+    moderationNote: moderation.checked
+      ? `Verified safe manga ${kind} artwork.`
+      : `Validated binary & resolution (${width}x${height}px); queued under community moderation.`,
+  };
+}
+
+
