@@ -41,6 +41,7 @@ jobs:
       - name: Prepare GitHub Pages artifacts
         run: |
           touch dist/.nojekyll
+          if [ -f CNAME ]; then cp CNAME dist/CNAME; fi
           if [ ! -f dist/404.html ]; then cp dist/index.html dist/404.html; fi
 
       - name: Upload Pages artifact

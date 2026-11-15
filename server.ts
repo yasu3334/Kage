@@ -282,6 +282,9 @@ async function startServer() {
     if (
       origin &&
       (origin.endsWith('.github.io') ||
+        origin.endsWith('.thecrexora.com') ||
+        origin === 'https://thecrexora.com' ||
+        origin === 'http://thecrexora.com' ||
         origin.includes('localhost') ||
         origin.includes('127.0.0.1') ||
         origin.endsWith('.run.app'))

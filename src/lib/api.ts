@@ -1,3 +1,5 @@
+import { resolveStaticApiFallback } from './staticSnapshotResolver';
+
 // Session token store (uses in-memory + safe sessionStorage/localStorage fallback for kage_srv tokens)
 const SERVER_SESSION_KEY = 'kage_srv_session_v1';
 
@@ -82,6 +84,8 @@ const CONFIGURED_API_BASE = (import.meta.env.VITE_API_BASE_URL || '')
   .trim()
   .replace(/\/+$/, '');
 
+let staticBackendUnavailable = false;
+
 export function resolveApiUrl(path: string): string {
   if (/^https?:\/\//i.test(path)) return path;
   if (CONFIGURED_API_BASE && path.startsWith('/')) {
@@ -94,6 +98,14 @@ export async function apiFetch<T = any>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
+  const isApiPath = path.startsWith('/api/');
+
+  if (isApiPath && staticBackendUnavailable) {
+    const fallback = await resolveStaticApiFallback<T>(path, options);
+    if (fallback.handled) return fallback.data;
+    throw new Error('Backend API unavailable on this host');
+  }
+
   const token = await getActiveToken();
   const headers = new Headers(options.headers || {});
   if (!headers.has('Content-Type') && options.body && typeof options.body === 'string') {
@@ -103,13 +115,29 @@ export async function apiFetch<T = any>(
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const res = await fetch(resolveApiUrl(path), {
-    ...options,
-    headers,
-  });
+  let res: Response;
+  try {
+    res = await fetch(resolveApiUrl(path), {
+      ...options,
+      headers,
+    });
+  } catch (err) {
+    if (isApiPath) {
+      const fallback = await resolveStaticApiFallback<T>(path, options);
+      if (fallback.handled) return fallback.data;
+    }
+    throw err;
+  }
 
   const contentType = (res.headers.get('content-type') || '').toLowerCase();
   if (!contentType.includes('application/json')) {
+    if (isApiPath) {
+      if (!CONFIGURED_API_BASE && (res.status === 404 || res.status === 405 || res.ok)) {
+        staticBackendUnavailable = true;
+      }
+      const fallback = await resolveStaticApiFallback<T>(path, options);
+      if (fallback.handled) return fallback.data;
+    }
     if (!res.ok) {
       throw new Error(`Request failed (${res.status})`);
     }
@@ -119,6 +147,10 @@ export async function apiFetch<T = any>(
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
+    if (isApiPath && (res.status === 404 || res.status === 405 || res.status >= 502)) {
+      const fallback = await resolveStaticApiFallback<T>(path, options);
+      if (fallback.handled) return fallback.data;
+    }
     throw new Error(data?.error || `Request failed (${res.status})`);
   }
   return data as T;

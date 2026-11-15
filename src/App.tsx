@@ -262,6 +262,7 @@ const KageExperience: React.FC = () => {
 const shouldUseHashRouter =
   typeof window !== 'undefined' &&
   (window.location.hostname.endsWith('.github.io') ||
+    window.location.hostname === 'kage.thecrexora.com' ||
     import.meta.env.VITE_USE_HASH_ROUTER === 'true');
 
 const AppRouter: React.FC<{ children: React.ReactNode }> = ({ children }) =>

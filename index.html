@@ -19,7 +19,8 @@
     <script type="module" src="/src/main.tsx"></script>
     <script>
       (function () {
-        if (!window.location.hostname.endsWith('.github.io')) return;
+        var host = window.location.hostname;
+        if (!host.endsWith('.github.io') && host !== 'kage.thecrexora.com') return;
         window.setTimeout(function () {
           var root = document.getElementById('root');
           if (!root || root.childElementCount > 0) return;
