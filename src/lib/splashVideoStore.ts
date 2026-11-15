@@ -1,4 +1,5 @@
 import { apiFetch } from './api';
+import { resolvePublicAssetPath } from './assets';
 
 export interface SplashVideoConfig {
   configured: boolean;
@@ -19,10 +20,10 @@ export interface SplashVideoConfig {
 }
 
 const ENV_VIDEO_URL = (import.meta.env.VITE_SPLASH_VIDEO_URL || '').trim();
-export const DEFAULT_KAGE_INTRO_MP4 = '/assets/kage-intro.mp4';
-export const DEFAULT_KAGE_INTRO_WEBM = '/assets/kage-intro.webm';
-export const DEFAULT_KAGE_INTRO_POSTER = '/assets/kage-intro-poster.jpg';
-export const DEFAULT_KAGE_FINAL_LOGO_HD = '/assets/kage-intro-final-hd.png';
+export const DEFAULT_KAGE_INTRO_MP4 = resolvePublicAssetPath('/assets/kage-intro.mp4');
+export const DEFAULT_KAGE_INTRO_WEBM = resolvePublicAssetPath('/assets/kage-intro.webm');
+export const DEFAULT_KAGE_INTRO_POSTER = resolvePublicAssetPath('/assets/kage-intro-poster.jpg');
+export const DEFAULT_KAGE_FINAL_LOGO_HD = resolvePublicAssetPath('/assets/kage-intro-final-hd.png');
 
 let memoizedConfig: SplashVideoConfig | null = null;
 let inflightPromise: Promise<SplashVideoConfig> | null = null;

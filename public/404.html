@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KAGE — Redirecting</title>
+    <script>
+      (function () {
+        var loc = window.location;
+        var pathParts = loc.pathname.split('/').filter(Boolean);
+        // Preserve GitHub Pages project subpath (/repo-name/) when redirecting subpaths to hash route
+        var isUserRoot = loc.hostname.endsWith('.github.io') && pathParts.length <= 1;
+        var base = loc.hostname.endsWith('.github.io') && pathParts.length > 0 && !isUserRoot
+          ? '/' + pathParts[0] + '/'
+          : '/';
+        var subRoute = loc.pathname.slice(base.length).replace(/^\/+/, '');
+        var hashTarget = subRoute ? '#/' + subRoute + (loc.search || '') : '#/';
+        loc.replace(loc.origin + base + hashTarget);
+      })();
+    </script>
+  </head>
+  <body style="background:#09080B;color:#F5F1F2;font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;">
+    <p style="font-size:14px;color:#A7A0AA;">Entering KAGE...</p>
+  </body>
+</html>

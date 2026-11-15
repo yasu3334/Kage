@@ -378,8 +378,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const token = await getActiveToken();
       if (!token) return;
 
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+      const apiBase = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
+      let wsUrl: string;
+      if (apiBase && /^https?:\/\//i.test(apiBase)) {
+        wsUrl = `${apiBase.replace(/^http/i, 'ws')}/ws`;
+      } else {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        wsUrl = `${protocol}//${window.location.host}/ws`;
+      }
+
+      let ws: WebSocket;
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch {
+        return;
+      }
       wsRef.current = ws;
 
       ws.onopen = () => {

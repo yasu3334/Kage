@@ -8,8 +8,21 @@ import animeUniverseCrestArt from '../assets/images/anime_universe_crest_1793189
 import animeChatBannerArt from '../assets/images/anime_chat_banner_1793189815000.jpg';
 import pinnedWelcomeThumbArt from '../assets/images/pinned_welcome_thumb_1793189814772.jpg';
 
-export const KAGE_LOGO_URL = '/assets/kage-logo.png';
-export const ZENITSU_AVATAR_URL = '/assets/zenitsu-avatar.png';
+export function resolvePublicAssetPath(assetPath: string): string {
+  if (!assetPath) return '';
+  if (!assetPath.startsWith('/')) return assetPath;
+  const base = (import.meta.env.BASE_URL || '/').trim();
+  if (!base || base === '/') return assetPath;
+  const cleanRel = assetPath.replace(/^\/+/, '');
+  if (base === './' || base === '.') {
+    return `./${cleanRel}`;
+  }
+  const normalizedBase = base.endsWith('/') ? base : `${base}/`;
+  return `${normalizedBase}${cleanRel}`;
+}
+
+export const KAGE_LOGO_URL = resolvePublicAssetPath('/assets/kage-logo.png');
+export const ZENITSU_AVATAR_URL = resolvePublicAssetPath('/assets/zenitsu-avatar.png');
 
 export const KAGE_ASSETS: Record<string, string> = {
   'asset:thunder': '/assets/extracted/zenitsu-live-room.jpg',
@@ -38,12 +51,16 @@ export const KAGE_ASSETS: Record<string, string> = {
 
 export function resolveAssetUrl(src?: string | null): string {
   if (!src) return '';
-  if (KAGE_ASSETS[src]) return KAGE_ASSETS[src];
-  return src;
+  const mapped = KAGE_ASSETS[src] || src;
+  return resolvePublicAssetPath(mapped);
 }
 
 export const PRESET_AVATARS = [
-  { key: '/assets/zenitsu-avatar.png', label: 'Zenitsu Gold', url: '/assets/zenitsu-avatar.png' },
+  {
+    key: '/assets/zenitsu-avatar.png',
+    label: 'Zenitsu Gold',
+    url: resolvePublicAssetPath('/assets/zenitsu-avatar.png'),
+  },
   {
     key: 'asset:anime_universe_crest',
     label: 'Anime Universe Crest',
@@ -52,22 +69,22 @@ export const PRESET_AVATARS = [
   {
     key: '/assets/extracted/avatar-zenitsu-dark.jpg',
     label: 'Thunder Slayer',
-    url: '/assets/extracted/avatar-zenitsu-dark.jpg',
+    url: resolvePublicAssetPath('/assets/extracted/avatar-zenitsu-dark.jpg'),
   },
   {
     key: '/assets/extracted/avatar-levi.jpg',
     label: 'Captain Levi',
-    url: '/assets/extracted/avatar-levi.jpg',
+    url: resolvePublicAssetPath('/assets/extracted/avatar-levi.jpg'),
   },
   {
     key: '/assets/extracted/clash-jinwoo.jpg',
     label: 'Shadow Monarch',
-    url: '/assets/extracted/clash-jinwoo.jpg',
+    url: resolvePublicAssetPath('/assets/extracted/clash-jinwoo.jpg'),
   },
   {
     key: '/assets/extracted/clash-gojo.jpg',
     label: 'Six Eyes Gojo',
-    url: '/assets/extracted/clash-gojo.jpg',
+    url: resolvePublicAssetPath('/assets/extracted/clash-gojo.jpg'),
   },
 ];
 
@@ -85,31 +102,31 @@ export const PRESET_BANNERS = [
   {
     key: '/assets/extracted/solo-hero-home.jpg',
     label: 'Solo Leveling',
-    url: '/assets/extracted/solo-hero-home.jpg',
+    url: resolvePublicAssetPath('/assets/extracted/solo-hero-home.jpg'),
   },
   {
     key: '/assets/extracted/zenitsu-live-room.jpg',
     label: 'Zenitsu Thunder',
-    url: '/assets/extracted/zenitsu-live-room.jpg',
+    url: resolvePublicAssetPath('/assets/extracted/zenitsu-live-room.jpg'),
   },
   {
     key: '/assets/extracted/guild-infinity.jpg',
     label: 'Infinity Castle',
-    url: '/assets/extracted/guild-infinity.jpg',
+    url: resolvePublicAssetPath('/assets/extracted/guild-infinity.jpg'),
   },
   {
     key: '/assets/extracted/guild-wings.jpg',
     label: 'Wings of Freedom',
-    url: '/assets/extracted/guild-wings.jpg',
+    url: resolvePublicAssetPath('/assets/extracted/guild-wings.jpg'),
   },
   {
     key: '/assets/extracted/clash-gojo.jpg',
     label: 'Unlimited Void',
-    url: '/assets/extracted/clash-gojo.jpg',
+    url: resolvePublicAssetPath('/assets/extracted/clash-gojo.jpg'),
   },
   {
     key: '/assets/extracted/pulse-hashira.jpg',
     label: 'Hashira Corps',
-    url: '/assets/extracted/pulse-hashira.jpg',
+    url: resolvePublicAssetPath('/assets/extracted/pulse-hashira.jpg'),
   },
 ];

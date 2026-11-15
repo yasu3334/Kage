@@ -4,7 +4,15 @@
  */
 
 import React, { useState } from 'react';
-import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import {
+  BrowserRouter,
+  HashRouter,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SoundProvider } from './context/SoundContext';
 import { AppShell } from './components/AppShell';
@@ -251,16 +259,24 @@ const KageExperience: React.FC = () => {
   );
 };
 
+const shouldUseHashRouter =
+  typeof window !== 'undefined' &&
+  (window.location.hostname.endsWith('.github.io') ||
+    import.meta.env.VITE_USE_HASH_ROUTER === 'true');
+
+const AppRouter: React.FC<{ children: React.ReactNode }> = ({ children }) =>
+  shouldUseHashRouter ? <HashRouter>{children}</HashRouter> : <BrowserRouter>{children}</BrowserRouter>;
+
 export default function App() {
   return (
     <KageErrorBoundary>
-      <BrowserRouter>
+      <AppRouter>
         <AuthProvider>
           <SoundProvider>
             <KageExperience />
           </SoundProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </AppRouter>
     </KageErrorBoundary>
   );
 }

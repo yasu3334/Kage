@@ -78,6 +78,18 @@ export async function getActiveToken(): Promise<string | null> {
   return memoryIdToken;
 }
 
+const CONFIGURED_API_BASE = (import.meta.env.VITE_API_BASE_URL || '')
+  .trim()
+  .replace(/\/+$/, '');
+
+export function resolveApiUrl(path: string): string {
+  if (/^https?:\/\//i.test(path)) return path;
+  if (CONFIGURED_API_BASE && path.startsWith('/')) {
+    return `${CONFIGURED_API_BASE}${path}`;
+  }
+  return path;
+}
+
 export async function apiFetch<T = any>(
   path: string,
   options: RequestInit = {}
@@ -91,10 +103,19 @@ export async function apiFetch<T = any>(
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const res = await fetch(path, {
+  const res = await fetch(resolveApiUrl(path), {
     ...options,
     headers,
   });
+
+  const contentType = (res.headers.get('content-type') || '').toLowerCase();
+  if (!contentType.includes('application/json')) {
+    if (!res.ok) {
+      throw new Error(`Request failed (${res.status})`);
+    }
+    // Static hosts (e.g. GitHub Pages) may return 200 text/html for unknown /api/* paths
+    throw new Error('Backend API unavailable on this host');
+  }
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
